@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { aggregate, rangeWindow } from '../lib/aggregate.js'
-import { cacheHitPercent, formatDate, formatDateRange, formatDuration, formatTokens, renderReport, renderBars } from '../lib/render.js'
+import { cacheHitPercent, formatDate, formatDateRange, formatDuration, formatTokens, renderHelp, renderReport, renderBars } from '../lib/render.js'
 
 const NOW = new Date('2026-09-01T12:00:00').getTime()
 
@@ -61,6 +61,17 @@ test('the report renders header, totals, models, and bars', () => {
   assert.ok(report.includes('By model'), report)
   assert.ok(report.includes('glm-4.6'), report)
   assert.ok(report.includes('Sep 1 ▇'), report)
+})
+
+test('the help screen shows usage, config, and ledger coverage', () => {
+  const empty = renderHelp({ mode: 'on', retentionDays: 365 }, { steps: 0, earliest: null })
+  assert.match(empty, /Usage:/)
+  assert.match(empty, /\/llm-stats 12m\s+last 12 months/)
+  assert.match(empty, /mode on · retention 365 days/)
+  assert.match(empty, /ledger empty/)
+  const started = renderHelp({ mode: 'off', retentionDays: 30 }, { steps: 1234, earliest: new Date('2026-08-14T00:00:00').getTime() })
+  assert.match(started, /mode off · retention 30 days/)
+  assert.match(started, /1,234 steps recorded since Aug 14/)
 })
 
 test('an empty window renders the no-activity line', () => {

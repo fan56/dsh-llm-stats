@@ -85,7 +85,6 @@ export const DAILY_BAR_MAX_DAYS = 92
 export interface ResolvedConfig {
   readonly mode: 'on' | 'off'
   readonly retentionDays: number
-  readonly defaultRange: RangeKey
 }
 
 /** Guard a value as one of the shipped range keys. */

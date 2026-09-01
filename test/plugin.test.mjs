@@ -51,10 +51,10 @@ function makeStore(dir, now) {
 }
 
 test('resolveConfig defaults and rejects', () => {
-  assert.deepEqual(resolveConfig(undefined), { mode: 'on', retentionDays: 365, defaultRange: 'week' })
+  assert.deepEqual(resolveConfig(undefined), { mode: 'on', retentionDays: 365 })
   assert.throws(() => resolveConfig({ nope: 1 }), /unknown key/)
   assert.throws(() => resolveConfig({ retentionDays: 3 }), /retentionDays/)
-  assert.throws(() => resolveConfig({ defaultRange: 'fortnight' }), /defaultRange/)
+  assert.throws(() => resolveConfig({ defaultRange: 'week' }), /unknown key/)
   assert.throws(() => resolveConfig({ mode: 'maybe' }), /mode/)
 })
 
@@ -78,12 +78,23 @@ test('the plugin registers the command and records step records', async () => {
   }
 })
 
-test('a bare invocation uses the configured default range', async () => {
-  const h = harness({ defaultRange: 'day' })
+test('a bare invocation renders help with config and ledger coverage', async () => {
+  const h = harness()
   try {
     const result = await h.handler({ rawInput: '', signal: new AbortController().signal })
     assert.equal(result.kind, 'success')
-    assert.match(result.text, /today/)
+    assert.match(result.text, /Usage:/)
+    assert.match(result.text, /\/llm-stats week/)
+    assert.match(result.text, /mode on · retention 365 days/)
+    assert.match(result.text, /ledger empty/)
+    // Record one step, and the help no longer claims an empty ledger.
+    const listener = h.listeners['session/event']
+    const NOW = new Date('2026-09-01T12:00:00').getTime()
+    listener({ id: 'sid-1', requestContext: () => undefined }, event('request/context', NOW - 600, { provider: 'zai', model: 'glm-4.6' }))
+    listener({ id: 'sid-1', requestContext: () => undefined }, event('step/start', NOW - 500, { turn: 1, step: 1 }))
+    listener({ id: 'sid-1', requestContext: () => undefined }, event('step/end', NOW - 100, { turn: 1, step: 1 }))
+    const after = await h.handler({ rawInput: '', signal: new AbortController().signal })
+    assert.match(after.text, /1 step recorded since/)
   } finally {
     h.cleanup()
   }

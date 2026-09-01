@@ -24,13 +24,13 @@ import type { CommandResult } from '@deepseek-ai/dsh-commands'
 import { SessionFold, type StepRoute } from './fold.ts'
 import { StatsStore, resolveStoreDir } from './store.ts'
 import { aggregate, rangeWindow } from './aggregate.ts'
-import { renderReport } from './render.ts'
-import { isRangeKey, RANGES, type RangeKey, type ResolvedConfig } from './types.ts'
+import { renderHelp, renderReport } from './render.ts'
+import { isRangeKey, RANGES, type ResolvedConfig } from './types.ts'
 
 export { SessionFold } from './fold.ts'
 export { StatsStore, parseRecords, dedupeRecords, resolveStoreDir, STORE_DIR_NAME } from './store.ts'
 export { aggregate, rangeWindow } from './aggregate.ts'
-export { renderReport, formatTokens, formatDuration, cacheHitPercent } from './render.ts'
+export { renderHelp, renderReport, formatTokens, formatDuration, cacheHitPercent } from './render.ts'
 export * from './types.ts'
 
 export const name = 'dsh-llm-stats'
@@ -42,8 +42,6 @@ export interface Config {
   mode?: 'on' | 'off'
   /** Records older than this many days are dropped at compaction (default 365, min 7). */
   retentionDays?: number
-  /** Range shown by a bare `/llm-stats` (default `week`). */
-  defaultRange?: RangeKey
 }
 
 const DEFAULT_RETENTION_DAYS = 365
@@ -57,13 +55,9 @@ const COMPACT_INTERVAL_MS = 24 * 3_600_000
 export const Config = z.object({
   mode: z.union([z.const('on'), z.const('off')]).default('on'),
   retentionDays: z.number().step(1).min(MIN_RETENTION_DAYS).default(DEFAULT_RETENTION_DAYS),
-  defaultRange: z.union([
-    z.const('day'), z.const('week'), z.const('month'),
-    z.const('3m'), z.const('6m'), z.const('12m'),
-  ]).default('week'),
 }) as unknown as z<Config>
 
-const CONFIG_KEYS: ReadonlySet<string> = new Set(['mode', 'retentionDays', 'defaultRange'])
+const CONFIG_KEYS: ReadonlySet<string> = new Set(['mode', 'retentionDays'])
 
 /**
  * Validate, default, and freeze the plugin configuration.
@@ -84,11 +78,7 @@ export function resolveConfig(config: Config | undefined): ResolvedConfig {
   if (!Number.isSafeInteger(retentionDays) || retentionDays < MIN_RETENTION_DAYS) {
     throw new Error(`dsh-llm-stats: retentionDays must be an integer >= ${MIN_RETENTION_DAYS}`)
   }
-  const defaultRange = config?.defaultRange ?? 'week'
-  if (!isRangeKey(defaultRange)) {
-    throw new Error(`dsh-llm-stats: defaultRange must be one of ${Object.keys(RANGES).join(', ')}`)
-  }
-  return Object.freeze({ mode, retentionDays, defaultRange })
+  return Object.freeze({ mode, retentionDays })
 }
 
 /** Non-serializable seams for deterministic tests. */
@@ -157,19 +147,21 @@ export function apply(ctx: Context, config: Config = {}, internals: Internals = 
     input: { hint: '[day|week|month|3m|6m|12m]' },
     handler: (invocation): CommandResult => {
       const raw = invocation.rawInput.trim().toLowerCase()
-      let key: RangeKey
+      // Bare invocation shows help (user decision 2026-09-01): usage
+      // grammar, active config, and whether the ledger has started.
       if (raw === '') {
-        key = policy.defaultRange
-      } else if (isRangeKey(raw)) {
-        key = raw
-      } else {
+        const records = store.readAll()
+        const earliest = records.length > 0 ? Math.min(...records.map(r => r.t)) : null
+        return { kind: 'success', text: renderHelp(policy, { steps: records.length, earliest }) }
+      }
+      if (!isRangeKey(raw)) {
         return {
           kind: 'error',
           text: `Unknown range "${raw}". Usage: /llm-stats [${Object.keys(RANGES).join('|')}]`,
         }
       }
-      const window = rangeWindow(key, now())
-      const report = renderReport(key, aggregate(store.readAll(), window))
+      const window = rangeWindow(raw, now())
+      const report = renderReport(raw, aggregate(store.readAll(), window))
       return { kind: 'success', text: report }
     },
   }), 'dsh-llm-stats: /llm-stats command')

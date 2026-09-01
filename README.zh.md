@@ -32,7 +32,7 @@ dsh plugin add @aiwayds/dsh-llm-stats
 
 | 命令 | 含义 |
 | --- | --- |
-| `/llm-stats` | 默认档（可配置，出厂 `week`） |
+| `/llm-stats` | 帮助：用法、当前配置、账本覆盖情况 |
 | `/llm-stats day\|week\|month\|3m\|6m\|12m` | 以现在为终点的滚动日历窗口 |
 | `/llm-stats day` | 仅今天 |
 
@@ -45,7 +45,6 @@ dsh plugin add @aiwayds/dsh-llm-stats
   config:
     mode: on              # off 停止记账；/llm-stats 与清理照常工作
     retentionDays: 365    # 超过该天数的记录在 compaction 时清除（最小 7）
-    defaultRange: week    # 裸 /llm-stats 显示的档位
 ```
 
 ## 工作原理

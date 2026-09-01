@@ -32,7 +32,7 @@ Then restart dsh. Install it into **every profile** whose usage you want counted
 
 | Command | Meaning |
 | --- | --- |
-| `/llm-stats` | Default range (configurable, `week` out of the box) |
+| `/llm-stats` | Help: usage, active config, ledger coverage |
 | `/llm-stats day\|week\|month\|3m\|6m\|12m` | Rolling calendar-day windows ending now |
 | `/llm-stats day` | Today only |
 
@@ -45,7 +45,6 @@ Ranges are rolling: `week` covers the last 7 local calendar days including today
   config:
     mode: on              # off stops recording; /llm-stats and cleanup keep working
     retentionDays: 365    # records older than this are dropped at compaction (min 7)
-    defaultRange: week    # what a bare /llm-stats shows
 ```
 
 ## How it works

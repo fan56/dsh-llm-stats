@@ -16,7 +16,7 @@
  */
 
 import { foldWeekly, type BarRow, type ModelRow, type RangeAggregate } from './aggregate.ts'
-import { DAILY_BAR_MAX_DAYS, RANGES, type RangeKey } from './types.ts'
+import { DAILY_BAR_MAX_DAYS, RANGES, type RangeKey, type ResolvedConfig } from './types.ts'
 
 /** Compact token count: 517 / 12.2K / 999.5K / 1M / 1.2M (one decimal under 100). */
 export function formatTokens(n: number): string {
@@ -60,6 +60,41 @@ export function formatDateRange(start: number, end: number): string {
 export function cacheHitPercent(totals: { cr: number; tin: number; cw: number }): number | null {
   const billed = totals.tin + totals.cr + totals.cw
   return billed === 0 ? null : Math.round(totals.cr / billed * 100)
+}
+
+/** Ledger coverage facts shown on the help screen. */
+export interface LedgerSummary {
+  /** Total records in the ledger (all time). */
+  steps: number
+  /** Earliest record time, epoch ms; null on an empty ledger. */
+  earliest: number | null
+}
+
+/**
+ * Help screen — what a bare `/llm-stats` shows (user decision 2026-09-01,
+ * replacing the default-range render). Carries the usage grammar, the active
+ * configuration, and whether the ledger has started recording at all.
+ */
+export function renderHelp(config: ResolvedConfig, ledger: LedgerSummary): string {
+  const lines: string[] = []
+  lines.push('LLM stats — records this machine\'s LLM usage and reports it as text.')
+  lines.push('')
+  lines.push('  Usage:')
+  lines.push('    /llm-stats            show this help')
+  for (const range of Object.values(RANGES)) {
+    lines.push(`    /llm-stats ${range.key.padEnd(10)}${range.label}`)
+  }
+  lines.push('')
+  const configLine = `mode ${config.mode} · retention ${config.retentionDays} days`
+  let ledgerLine: string
+  if (ledger.steps === 0) {
+    ledgerLine = 'ledger empty — stats appear after your first completed turn'
+  } else {
+    ledgerLine = `${ledger.steps.toLocaleString('en-US')} step${ledger.steps === 1 ? '' : 's'} recorded since ${formatDate(ledger.earliest ?? 0)}`
+  }
+  lines.push(`  ${configLine}`)
+  lines.push(`  ${ledgerLine}`)
+  return lines.join('\n')
 }
 
 /** One text report, ready for `{ kind: 'success', text }`. */
