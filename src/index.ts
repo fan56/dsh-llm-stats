@@ -25,7 +25,7 @@ import { SessionFold, type StepRoute } from './fold.ts'
 import { StatsStore, resolveStoreDir } from './store.ts'
 import { aggregate, rangeWindow } from './aggregate.ts'
 import { renderHelp, renderReport } from './render.ts'
-import { isRangeKey, RANGES, type ResolvedConfig } from './types.ts'
+import { isRangeKey, RANGES, resolveRangeKey, type ResolvedConfig } from './types.ts'
 
 export { SessionFold } from './fold.ts'
 export { StatsStore, parseRecords, dedupeRecords, resolveStoreDir, STORE_DIR_NAME } from './store.ts'
@@ -154,14 +154,15 @@ export function apply(ctx: Context, config: Config = {}, internals: Internals = 
         const earliest = records.length > 0 ? Math.min(...records.map(r => r.t)) : null
         return { kind: 'success', text: renderHelp(policy, { steps: records.length, earliest }) }
       }
-      if (!isRangeKey(raw)) {
+      const range = resolveRangeKey(raw)
+      if (range === null) {
         return {
           kind: 'error',
-          text: `Unknown range "${raw}". Usage: /llm-stats [${Object.keys(RANGES).join('|')}]`,
+          text: `Unknown range "${raw}". Usage: /llm-stats [${Object.keys(RANGES).join('|')}] (short: d|w|m)`,
         }
       }
-      const window = rangeWindow(raw, now())
-      const report = renderReport(raw, aggregate(store.readAll(), window))
+      const window = rangeWindow(range, now())
+      const report = renderReport(range, aggregate(store.readAll(), window))
       return { kind: 'success', text: report }
     },
   }), 'dsh-llm-stats: /llm-stats command')

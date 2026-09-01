@@ -34,6 +34,7 @@ Then restart dsh. Install it into **every profile** whose usage you want counted
 | --- | --- |
 | `/llm-stats` | Help: usage, active config, ledger coverage |
 | `/llm-stats day\|week\|month\|3m\|6m\|12m` | Rolling calendar-day windows ending now |
+| `/llm-stats d\|w\|m` | Shorthand for day / week / month |
 | `/llm-stats day` | Today only |
 
 Ranges are rolling: `week` covers the last 7 local calendar days including today, so the rendered date range always matches what you would call "the last 7 days". Windows of 3 months and longer fold the per-day bars into Monday-aligned weeks.

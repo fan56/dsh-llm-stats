@@ -34,6 +34,7 @@ dsh plugin add @aiwayds/dsh-llm-stats
 | --- | --- |
 | `/llm-stats` | 帮助：用法、当前配置、账本覆盖情况 |
 | `/llm-stats day\|week\|month\|3m\|6m\|12m` | 以现在为终点的滚动日历窗口 |
+| `/llm-stats d\|w\|m` | day / week / month 的短别名 |
 | `/llm-stats day` | 仅今天 |
 
 范围是滚动语义：`week` = 最近 7 个本地日历日（含今天），输出标注的实际日期区间与口语「最近七天」一致。3 个月及以上的长档，逐日条形自动折叠为周一取齐的逐周条形。

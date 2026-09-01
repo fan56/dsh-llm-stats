@@ -115,7 +115,9 @@ test('retention drops records older than the cutoff at compaction', () => {
     store.append(record({ t: NOW - 400 * 86_400_000 }))
     store.append(record({ t: NOW - 100 * 86_400_000 }))
     store.close()
-    // Same-process shards never count as dead on pid alone; collapse the wall.
+    // Backdate the shard: dead-shard detection compares mtime against the
+    // fake clock, and a fresh real mtime can sit on either side of it.
+    utimesSync(store.shardPath, new Date(NOW - 60_000), new Date(NOW - 60_000))
     const next = new StatsStore(dir, { now: () => NOW, shardDeadMs: 0 })
     next.compact(365)
     const kept = next.readAll()
@@ -173,6 +175,7 @@ test('a stale lock is taken over', () => {
     const store = new StatsStore(dir, { now: () => NOW })
     store.append(record({}))
     store.close()
+    utimesSync(store.shardPath, new Date(NOW - 60_000), new Date(NOW - 60_000))
     const next = new StatsStore(dir, { now: () => NOW, shardDeadMs: 0 })
     assert.equal(next.compact(null), 1)
     next.close()

@@ -100,6 +100,27 @@ test('a bare invocation renders help with config and ledger coverage', async () 
   }
 })
 
+test('d/w/m resolve as short aliases for day/week/month', async () => {
+  const h = harness()
+  try {
+    const NOW = new Date('2026-09-01T12:00:00').getTime()
+    const listener = h.listeners['session/event']
+    listener({ id: 'sid-1', requestContext: () => undefined }, event('request/context', NOW - 600, { provider: 'zai', model: 'glm-4.6' }))
+    listener({ id: 'sid-1', requestContext: () => undefined }, event('step/start', NOW - 500, { turn: 1, step: 1 }))
+    listener({ id: 'sid-1', requestContext: () => undefined }, event('assistant/message', NOW - 300, { turn: 1, step: 1, message: {}, usage: { inputTokens: 10, outputTokens: 4 } }))
+    listener({ id: 'sid-1', requestContext: () => undefined }, event('step/end', NOW - 100, { turn: 1, step: 1 }))
+    const day = await h.handler({ rawInput: 'd', signal: new AbortController().signal })
+    assert.match(day.text, /today/)
+    assert.match(day.text, /Requests 1/)
+    const week = await h.handler({ rawInput: 'w', signal: new AbortController().signal })
+    assert.match(week.text, /last 7 days/)
+    const month = await h.handler({ rawInput: 'm', signal: new AbortController().signal })
+    assert.match(month.text, /last 30 days/)
+  } finally {
+    h.cleanup()
+  }
+})
+
 test('an unknown range answers with usage, not a throw', async () => {
   const h = harness()
   try {

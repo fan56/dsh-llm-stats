@@ -84,6 +84,7 @@ export function renderHelp(config: ResolvedConfig, ledger: LedgerSummary): strin
   for (const range of Object.values(RANGES)) {
     lines.push(`    /llm-stats ${range.key.padEnd(10)}${range.label}`)
   }
+  lines.push('    /llm-stats d|w|m     shorthand for day / week / month')
   lines.push('')
   const configLine = `mode ${config.mode} · retention ${config.retentionDays} days`
   let ledgerLine: string

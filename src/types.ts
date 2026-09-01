@@ -91,3 +91,21 @@ export interface ResolvedConfig {
 export function isRangeKey(value: string): value is RangeKey {
   return value in RANGES
 }
+
+/** Short aliases accepted on the command line (user request 2026-09-01). */
+export const RANGE_ALIASES: Readonly<Record<string, RangeKey>> = Object.freeze({
+  d: 'day',
+  w: 'week',
+  m: 'month',
+})
+
+/**
+ * Map a command-line argument to a range key, accepting full keys and short
+ * aliases.
+ * @param value - the argument as typed (already lower-cased by the caller).
+ * @returns the range key, or null when unrecognized.
+ */
+export function resolveRangeKey(value: string): RangeKey | null {
+  if (isRangeKey(value)) return value
+  return RANGE_ALIASES[value] ?? null
+}
