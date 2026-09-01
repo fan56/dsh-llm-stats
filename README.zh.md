@@ -63,12 +63,13 @@ dsh plugin add @aiwayds/dsh-llm-stats
 ## 开发
 
 ```bash
-npm install        # devDependencies 解析 @deepseek-ai/* 类型闭包
-npm run check      # tsc --noEmit
-npm test           # 构建 + node --test（fold / aggregate / render / store / 插件接线）
+npm install                          # devDependencies 解析 @deepseek-ai/* 类型闭包
+node scripts/link-dsh-closure.mjs    # 把本地 @deepseek-ai/* 重新指向全局闭包（每次 install 后重跑）
+npm run check                        # tsc --noEmit
+npm test                             # 构建 + node --test（fold / aggregate / render / store / 插件接线）
 ```
 
-`@deepseek-ai/*` 只进 peerDependencies（devDependencies 仅供本地构建）；把第二份闭包打进 dsh profile 会破坏 cordis 服务同一性。
+`@deepseek-ai/*` 只进 peerDependencies（devDependencies 仅供本地构建）；把第二份闭包打进 dsh profile 会破坏 cordis 服务同一性。仓库以 link 挂进 live profile 时，正是上面这步 link 保证插件与 profile 解析到同一份闭包——不要跳过。
 
 ## 许可
 

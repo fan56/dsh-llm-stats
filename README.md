@@ -63,12 +63,13 @@ Ranges are rolling: `week` covers the last 7 local calendar days including today
 ## Development
 
 ```bash
-npm install        # devDependencies resolve the @deepseek-ai/* type closure
-npm run check      # tsc --noEmit
-npm test           # build + node --test (fold / aggregate / render / store / plugin wiring)
+npm install                          # devDependencies resolve the @deepseek-ai/* type closure
+node scripts/link-dsh-closure.mjs    # re-point local @deepseek-ai/* at the global closure (rerun after every install)
+npm run check                        # tsc --noEmit
+npm test                             # build + node --test (fold / aggregate / render / store / plugin wiring)
 ```
 
-`@deepseek-ai/*` packages are peer dependencies only (devDependencies carry them for local builds); bundling a second closure into a dsh profile breaks cordis service identity.
+`@deepseek-ai/*` packages are peer dependencies only (devDependencies carry them for local builds); bundling a second closure into a dsh profile breaks cordis service identity. When the repo is link-mounted into a live dsh profile, the link step above is what keeps the plugin resolving against the same closure the profile runs on — do not skip it.
 
 ## License
 
