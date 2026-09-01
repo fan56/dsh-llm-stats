@@ -1,0 +1,8 @@
+# dsh-llm-stats bundle patch: mounts the plugin into the profile's assembly
+# tree under the stable plugin id `dsh-llm-stats`. The plugin subscribes to
+# host-level `session/event` streams to fold a persistent usage ledger and
+# registers the `/llm-stats` slash command on every surface.
+
+- insert:
+    - id: dsh-llm-stats
+      name: '@aiwayds/dsh-llm-stats'
