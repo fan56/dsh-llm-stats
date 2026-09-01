@@ -39,6 +39,8 @@ test('formatDateRange labels the inclusive window', () => {
   const start = new Date('2026-08-26T00:00:00').getTime()
   assert.equal(formatDateRange(start, NOW + 1), 'Aug 26 – Sep 1')
   assert.equal(formatDate(NOW), 'Sep 1')
+  const yearAgo = new Date('2025-09-02T00:00:00').getTime()
+  assert.equal(formatDateRange(yearAgo, NOW + 1), 'Sep 2, 2025 – Sep 1, 2026')
 })
 
 test('the report renders header, totals, models, and bars', () => {

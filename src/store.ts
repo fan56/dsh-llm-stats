@@ -385,7 +385,18 @@ export class StatsStore {
         // Already closed.
       }
       this.fd = null
+      this.fdIno = null
     }
+  }
+
+  /**
+   * Take the ledger's lock for a long operation (the backfill pass). Null
+   * means a compaction or another backfill holds it; the caller skips
+   * instead of queueing.
+   * @returns the lock release thunk, or null when the lock is healthily held elsewhere.
+   */
+  acquireLedgerLock(): (() => void) | null {
+    return this.acquireLock()
   }
 }
 

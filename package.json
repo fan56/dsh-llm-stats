@@ -1,6 +1,6 @@
 {
   "name": "@aiwayds/dsh-llm-stats",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "dsh plugin: persistent whole-machine LLM usage ledger with a pure-text /llm-stats command (tokens, cache hit, model/tool time, per-day bars)",
   "type": "module",
   "main": "lib/index.js",
@@ -32,7 +32,7 @@
     "build": "tsc -p tsconfig.json",
     "check": "tsc --noEmit -p tsconfig.json",
     "pretest": "npm run build",
-    "test": "node --test test/fold.test.mjs test/aggregate.test.mjs test/render.test.mjs test/store.test.mjs test/plugin.test.mjs"
+    "test": "node --test test/fold.test.mjs test/aggregate.test.mjs test/render.test.mjs test/store.test.mjs test/plugin.test.mjs test/backfill.test.mjs"
   },
   "peerDependencies": {
     "@deepseek-ai/schemastery": "3.18.1",

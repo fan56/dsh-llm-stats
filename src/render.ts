@@ -45,11 +45,14 @@ export function formatDate(t: number): string {
   return `${MONTHS[d.getMonth()]} ${d.getDate()}`
 }
 
-/** Inclusive local date range label: `Aug 26 – Sep 1`. */
+/** Inclusive local date range label; the year appears when the ends differ: `Aug 26 – Sep 1`, `Sep 2, 2025 – Sep 1, 2026`. */
 export function formatDateRange(start: number, end: number): string {
   const from = formatDate(start)
   const to = formatDate(end - 1)
-  return from === to ? from : `${from} – ${to}`
+  if (from === to) return from
+  const fromYear = new Date(start).getFullYear()
+  const toYear = new Date(end - 1).getFullYear()
+  return fromYear === toYear ? `${from} – ${to}` : `${from}, ${fromYear} – ${to}, ${toYear}`
 }
 
 /**
@@ -85,6 +88,7 @@ export function renderHelp(config: ResolvedConfig, ledger: LedgerSummary): strin
     lines.push(`    /llm-stats ${range.key.padEnd(10)}${range.label}`)
   }
   lines.push('    /llm-stats d|w|m     shorthand for day / week / month')
+  lines.push('    /llm-stats backfill  import past usage from the session logs')
   lines.push('')
   const configLine = `mode ${config.mode} · retention ${config.retentionDays} days`
   let ledgerLine: string
@@ -95,6 +99,24 @@ export function renderHelp(config: ResolvedConfig, ledger: LedgerSummary): strin
   }
   lines.push(`  ${configLine}`)
   lines.push(`  ${ledgerLine}`)
+  return lines.join('\n')
+}
+
+/** Summary line for a finished backfill pass. */
+export function renderBackfillSummary(outcome: {
+  scanned: number
+  backfilled: number
+  known: number
+  empty: number
+  records: number
+  aborted: boolean
+}): string {
+  const lines = [
+    'Backfill complete',
+    `  Sessions scanned ${outcome.scanned} · backfilled ${outcome.backfilled} · already known ${outcome.known} · without qualifying steps ${outcome.empty}`,
+    `  Records added ${outcome.records.toLocaleString('en-US')}`,
+  ]
+  if (outcome.aborted) lines.push('  Aborted before every session was visited — run /llm-stats backfill again to resume.')
   return lines.join('\n')
 }
 

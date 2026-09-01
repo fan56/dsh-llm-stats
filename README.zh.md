@@ -35,7 +35,7 @@ dsh plugin add @aiwayds/dsh-llm-stats
 | `/llm-stats` | 帮助：用法、当前配置、账本覆盖情况 |
 | `/llm-stats day\|week\|month\|3m\|6m\|12m` | 以现在为终点的滚动日历窗口 |
 | `/llm-stats d\|w\|m` | day / week / month 的短别名 |
-| `/llm-stats day` | 仅今天 |
+| `/llm-stats backfill` | 从落盘会话日志回填历史用量 |
 
 范围是滚动语义：`week` = 最近 7 个本地日历日（含今天），输出标注的实际日期区间与口语「最近七天」一致。3 个月及以上的长档，逐日条形自动折叠为周一取齐的逐周条形。
 
@@ -55,10 +55,20 @@ dsh plugin add @aiwayds/dsh-llm-stats
 - **重叠安全的聚合。** 聚合按 `(sid, turn, step)` 去重（last-wins），日志重放或（将来的）历史回填都不会重复计数。
 - **不记内容。** 账本里只有数字、模型 id 和会话 id——没有 prompt、没有工具名、没有结果。
 
+## 回填
+
+账本从插件启动才开始记；之前的历史跑一次：
+
+```text
+/llm-stats backfill
+```
+
+它会扫描 `$DSH_HOME/sessions/`（全部项目），解码每个落盘日志（拼接 zstd 帧的生产格式，含打包 chunk 行），用与实时记账完全相同的 step 语义折叠，然后把记录并入账本。全程遵守 `retentionDays`（最后写入早于窗口的会话整体跳过）；fork/subagent 的种子历史按 header `seedLength` 跳过，父会话的用量绝不会被重复计入；已处理的会话记入 done-ledger，重复执行很快；中途被打断也可以续跑。
+
 ## 已知局限
 
-- 进程在 `step/end` 前崩溃的步会从账本丢失（将来的会话日志回填可以补回）。
-- 子代理子会话只有在其事件冒泡到 host 监听时才被计入；不冒泡的部署会低估，等回填功能落地后可补齐。
+- 进程在 `step/end` 前崩溃的步实时记账不会记录；下一次 backfill 会从会话日志补回。
+- 子代理子会话只有在其事件冒泡到 host 监听时才被实时计入；漏掉的由 backfill 兜底。
 
 ## 开发
 

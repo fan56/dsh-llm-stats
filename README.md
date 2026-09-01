@@ -35,7 +35,7 @@ Then restart dsh. Install it into **every profile** whose usage you want counted
 | `/llm-stats` | Help: usage, active config, ledger coverage |
 | `/llm-stats day\|week\|month\|3m\|6m\|12m` | Rolling calendar-day windows ending now |
 | `/llm-stats d\|w\|m` | Shorthand for day / week / month |
-| `/llm-stats day` | Today only |
+| `/llm-stats backfill` | Import past usage from the stored session logs |
 
 Ranges are rolling: `week` covers the last 7 local calendar days including today, so the rendered date range always matches what you would call "the last 7 days". Windows of 3 months and longer fold the per-day bars into Monday-aligned weeks.
 
@@ -55,10 +55,20 @@ Ranges are rolling: `week` covers the last 7 local calendar days including today
 - **Overlap-safe aggregation.** Aggregation dedupes on `(sid, turn, step)` last-wins, so replayed or (future) backfilled history cannot double count.
 - **No content recorded.** The ledger stores numbers, model ids, and session ids — never prompts, tool names, or results.
 
+## Backfill
+
+The ledger starts when the plugin starts; everything before that is invisible until you run:
+
+```text
+/llm-stats backfill
+```
+
+That scans `$DSH_HOME/sessions/` (all projects), decodes each stored log (concatenated zstd frames — the production format, including packed-chunk rows), folds it with the same step semantics as live recording, and appends the records to the ledger. Respects `retentionDays` (sessions last written before the cutoff are skipped), skips fork/subagent seed history so parent work is never counted twice, marks processed sessions in a done-ledger so repeat runs are fast, and can be aborted mid-run and resumed.
+
 ## Known limitations
 
-- A step whose process crashes before `step/end` is lost from the ledger (a future backfill from the session logs can recover it).
-- Subagent child sessions are counted only when their events bubble to the host listener; deployments where they do not will undercount until backfill lands.
+- A step whose process crashes before `step/end` is not recorded live; backfill recovers it from the session log on the next run.
+- Subagent child sessions are recorded live only when their events bubble to the host listener; any that slip through are picked up by backfill.
 
 ## Development
 

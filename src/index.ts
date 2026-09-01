@@ -22,15 +22,17 @@ import z from '@deepseek-ai/schemastery'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type { CommandResult } from '@deepseek-ai/dsh-commands'
 import { SessionFold, type StepRoute } from './fold.ts'
+import { runBackfill } from './backfill.ts'
 import { StatsStore, resolveStoreDir } from './store.ts'
 import { aggregate, rangeWindow } from './aggregate.ts'
-import { renderHelp, renderReport } from './render.ts'
-import { isRangeKey, RANGES, resolveRangeKey, type ResolvedConfig } from './types.ts'
+import { renderBackfillSummary, renderHelp, renderReport } from './render.ts'
+import { RANGES, resolveRangeKey, type ResolvedConfig } from './types.ts'
 
 export { SessionFold } from './fold.ts'
 export { StatsStore, parseRecords, dedupeRecords, resolveStoreDir, STORE_DIR_NAME } from './store.ts'
 export { aggregate, rangeWindow } from './aggregate.ts'
-export { renderHelp, renderReport, formatTokens, formatDuration, cacheHitPercent } from './render.ts'
+export { renderHelp, renderBackfillSummary, renderReport, formatTokens, formatDuration, cacheHitPercent } from './render.ts'
+export { runBackfill, discoverSessionLogs, foldSessionLog, decodeLogLines, scanZstdFrames } from './backfill.ts'
 export * from './types.ts'
 
 export const name = 'dsh-llm-stats'
@@ -144,8 +146,8 @@ export function apply(ctx: Context, config: Config = {}, internals: Internals = 
   ctx.effect(() => ctx.commands.register({
     name: 'llm-stats',
     description: 'Show LLM usage statistics (tokens, cache hit, time) over a rolling window',
-    input: { hint: '[day|week|month|3m|6m|12m]' },
-    handler: (invocation): CommandResult => {
+    input: { hint: '[day|week|month|3m|6m|12m|backfill]' },
+    handler: async (invocation): Promise<CommandResult> => {
       const raw = invocation.rawInput.trim().toLowerCase()
       // Bare invocation shows help (user decision 2026-09-01): usage
       // grammar, active config, and whether the ledger has started.
@@ -153,6 +155,15 @@ export function apply(ctx: Context, config: Config = {}, internals: Internals = 
         const records = store.readAll()
         const earliest = records.length > 0 ? Math.min(...records.map(r => r.t)) : null
         return { kind: 'success', text: renderHelp(policy, { steps: records.length, earliest }) }
+      }
+      if (raw === 'backfill') {
+        const outcome = await runBackfill({
+          store,
+          retentionDays: policy.retentionDays,
+          now,
+          signal: invocation.signal,
+        })
+        return { kind: 'success', text: renderBackfillSummary(outcome) }
       }
       const range = resolveRangeKey(raw)
       if (range === null) {
