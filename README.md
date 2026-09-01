@@ -2,23 +2,42 @@
 
 English | [中文](README.zh.md)
 
-Persistent LLM usage ledger for the [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) with a pure-text `/llm-stats` slash command. The plugin folds every closed agent step into one durable record line — tokens (four provider buckets), model wall time, first-token latency, decode throughput, tool wall time — appended to a process-private shard under `$DSH_HOME/llm-stats/`. Every dsh process on the machine that mounts the plugin feeds the same machine-wide ledger, and `/llm-stats` renders it over rolling calendar-day windows on any surface:
+Persistent LLM usage ledger for the [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) with a `/llm-stats` slash command that reports usage as a markdown report (GFM tables + emoji). The plugin folds every closed agent step into one durable record line — tokens (four provider buckets), model wall time, first-token latency, decode throughput, tool wall time — appended to a process-private shard under `$DSH_HOME/llm-stats/`. Every dsh process on the machine that mounts the plugin feeds the same machine-wide ledger, and `/llm-stats` renders it over rolling calendar-day windows on any surface:
 
 ```
-LLM stats · last 7 days (Aug 26 – Sep 1)
+## 📊 LLM stats · last 30 days (Aug 3 – Sep 1)
 
-  Sessions 12 · Turns 48 · Requests 156 · Steps 160
-  Tokens in 1.2M · cache hit 87% · out 45.3K · total 1.25M
-  Time model 18m32s · tools 4m10s · avg TTFT 1.2s · 42.3 tok/s
+| ⚡ Sessions | 💬 Turns | 📡 Requests | 👣 Steps |
+| --- | --- | --- | --- |
+| 132 | 196 | 2710 | 2742 |
 
-  By model
-    glm-4.6        in 900K  out 30K  cache 88%  req 120
-    deepseek-chat  in 300K  out 15K  cache 85%  req 36
+| 📥 In | 🔥 Cache hit | 📤 Out | 🧮 Total |
+| --- | --- | --- | --- |
+| 141M | 93% | 2.5M | 144M |
 
-  Aug 26 ▇▇▇▇▇▇▇▇ 120K
-  Aug 27 ▇▇▇▇▇▇▇▇▇▇▇▇ 180K
-  ...
+⏱ Model 13h15m · 🔧 Tools 18h35m · 🚀 TTFT 4.5s · ⚡ 69.2 tok/s
+
+## 🤖 By model
+
+| Model | 📥 In | 📤 Out | 🔥 Cache | 📡 Req |
+| --- | --- | --- | --- | --- |
+| glm-5.3-flash | 46.8M | 930K | 90% | 1053 |
+| deepseek-v4-flash | 78.1M | 1.1M | 94% | 1304 |
+| glm-5.3 | 14.6M | 369K | 93% | 301 |
+| MiniMax-M3 | 186K | 15.3K | 45% | 7 |
+| kimi | 393K | 6.8K | 79% | 10 |
+| minimax/minimax-m3:free | 1.2M | 14.2K | 96% | 35 |
+
+## 📈 Activity
+
+| 📅 Date | 📊 Tokens | 📈 |
+| --- | --- | --- |
+| Aug 28 | 168K | ▇ |
+| Aug 31 | 4.6M | ▇▇▇▇▇▇▇▇▇▇▇▇▇▇ |
+| Sep 1 | 8M | ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇ |
 ```
+
+dsh-tui-pi detects the table separators and renders the report through its markdown component as boxed tables; other surfaces (such as headless runs) show the raw markdown as-is.
 
 ## Install
 

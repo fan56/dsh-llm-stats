@@ -71,7 +71,7 @@ test('the plugin registers the command and records step records', async () => {
     listener({ id: SID }, event('step/end', NOW - 50, { turn: 1, step: 1 }))
     const result = await h.handler({ rawInput: 'day', signal: new AbortController().signal })
     assert.equal(result.kind, 'success')
-    assert.match(result.text, /Requests 1/)
+    assert.match(result.text, /\| 1 \| 1 \| 1 \| 1 \|/)
     assert.match(result.text, /glm-4\.6/)
   } finally {
     h.cleanup()
@@ -111,7 +111,7 @@ test('d/w/m resolve as short aliases for day/week/month', async () => {
     listener({ id: 'sid-1', requestContext: () => undefined }, event('step/end', NOW - 100, { turn: 1, step: 1 }))
     const day = await h.handler({ rawInput: 'd', signal: new AbortController().signal })
     assert.match(day.text, /today/)
-    assert.match(day.text, /Requests 1/)
+    assert.match(day.text, /\| 1 \| 1 \| 1 \| 1 \|/)
     const week = await h.handler({ rawInput: 'w', signal: new AbortController().signal })
     assert.match(week.text, /last 7 days/)
     const month = await h.handler({ rawInput: 'm', signal: new AbortController().signal })

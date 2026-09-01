@@ -1,21 +1,42 @@
 /**
- * Aggregate → pure-text renderer for `/llm-stats`. The single presentation
+ * Aggregate → markdown renderer for `/llm-stats`. The single presentation
  * surface of the plugin; UI copy is English-only (npm packaging convention).
+ * GFM tables + emoji icons: the TUI command echo detects the `| --- |`
+ * separator rows and renders the report through its markdown component;
+ * surfaces without that detection show the raw markdown, still readable.
+ * Help, backfill, and error output stay plain text with no table separators,
+ * so only reports take the markdown path downstream.
  *
  * Shape (from the approved plan):
  *
- *   LLM stats · last 7 days (Aug 26 – Sep 1)
- *     Sessions 23 · Turns 156 · Requests 412
- *     Tokens in 12.4M (cache hit 85%) · out 890K · total 13.3M
- *     Model time 3h12m · tools 47m · avg TTFT 1.2s · 42.3 tok/s
- *     By model
- *       deepseek-chat  in 9.1M  out 640K  cache 88%  req 320
- *     Aug 26 ▇▇▇▇▇▇▇ 2.1M
+ *   ## 📊 LLM stats · last 7 days (Aug 26 – Sep 1)
+ *
+ *   | ⚡ Sessions | 💬 Turns | 📡 Requests | 👣 Steps |
+ *   | --- | --- | --- | --- |
+ *   | 23 | 156 | 412 | 430 |
+ *
+ *   | 📥 In | 🔥 Cache hit | 📤 Out | 🧮 Total |
+ *   | --- | --- | --- | --- |
+ *   | 12.4M | 85% | 890K | 13.3M |
+ *
+ *   ⏱ Model 3h12m · 🔧 Tools 47m · 🚀 TTFT 1.2s · ⚡ 42.3 tok/s
+ *
+ *   ## 🤖 By model
+ *
+ *   | Model | 📥 In | 📤 Out | 🔥 Cache | 📡 Req |
+ *   | --- | --- | --- | --- | --- |
+ *   | deepseek-chat | 9.1M | 640K | 88% | 320 |
+ *
+ *   ## 📈 Activity
+ *
+ *   | 📅 Date | 📊 Tokens | 📈 |
+ *   | --- | --- | --- |
+ *   | Aug 26 | 2.1M | ▇▇▇▇▇▇▇ |
  *
  * @module @aiwayds/dsh-llm-stats/render
  */
 
-import { foldWeekly, type BarRow, type ModelRow, type RangeAggregate } from './aggregate.ts'
+import { foldWeekly, type BarRow, type RangeAggregate } from './aggregate.ts'
 import { DAILY_BAR_MAX_DAYS, RANGES, type RangeKey, type ResolvedConfig } from './types.ts'
 
 /** Compact token count: 517 / 12.2K / 999.5K / 1M / 1.2M (one decimal under 100). */
@@ -120,76 +141,94 @@ export function renderBackfillSummary(outcome: {
   return lines.join('\n')
 }
 
-/** One text report, ready for `{ kind: 'success', text }`. */
+/** One markdown report, ready for `{ kind: 'success', text }`. */
 export function renderReport(key: RangeKey, aggregate: RangeAggregate): string {
   const { totals, window } = aggregate
   const label = RANGES[key].label
   if (totals.steps === 0) {
-    return `LLM stats · ${label} (${formatDateRange(window.start, window.end)}): no activity recorded.`
+    return `📭 LLM stats · ${label} (${formatDateRange(window.start, window.end)}): no activity recorded.`
   }
   const lines: string[] = []
-  lines.push(`LLM stats · ${label} (${formatDateRange(window.start, window.end)})`)
+  lines.push(`## 📊 LLM stats · ${label} (${formatDateRange(window.start, window.end)})`)
   lines.push('')
-  lines.push(`  Sessions ${totals.sessions} · Turns ${totals.turns} · Requests ${totals.requests} · Steps ${totals.steps}`)
+  lines.push('| ⚡ Sessions | 💬 Turns | 📡 Requests | 👣 Steps |')
+  lines.push('| --- | --- | --- | --- |')
+  lines.push(`| ${totals.sessions} | ${totals.turns} | ${totals.requests} | ${totals.steps} |`)
+  lines.push('')
   // Displayed "in" is billed prompt-side input (uncached + cache read + cache
-  // write); "total" is billed input + output.
+  // write); "total" is billed input + output. Cache hit stays an empty cell
+  // (column retained) when nothing was billed.
   const billedIn = totals.tin + totals.cr + totals.cw
-  const tokenParts = [`in ${formatTokens(billedIn)}`]
-  const hit = cacheHitPercent(totals)
-  if (hit !== null) tokenParts.push(`cache hit ${hit}%`)
-  tokenParts.push(`out ${formatTokens(totals.out)}`)
-  tokenParts.push(`total ${formatTokens(billedIn + totals.out)}`)
-  lines.push(`  Tokens ${tokenParts.join(' · ')}`)
+  lines.push('| 📥 In | 🔥 Cache hit | 📤 Out | 🧮 Total |')
+  lines.push('| --- | --- | --- | --- |')
+  lines.push(`| ${formatTokens(billedIn)} | ${hitCell(cacheHitPercent(totals))} | ${formatTokens(totals.out)} | ${formatTokens(billedIn + totals.out)} |`)
   const timeParts: string[] = []
-  if (totals.llmMs > 0) timeParts.push(`model ${formatDuration(totals.llmMs)}`)
-  if (totals.toolMs > 0) timeParts.push(`tools ${formatDuration(totals.toolMs)}`)
-  if (totals.ttftSamples > 0) timeParts.push(`avg TTFT ${formatDuration(totals.ttftMs / totals.ttftSamples)}`)
-  if (totals.decMs > 0) timeParts.push(`${(totals.decTk / (totals.decMs / 1_000)).toFixed(1)} tok/s`)
-  if (timeParts.length > 0) lines.push(`  Time ${timeParts.join(' · ')}`)
-  if (aggregate.byModel.length > 0) {
+  if (totals.llmMs > 0) timeParts.push(`⏱ Model ${formatDuration(totals.llmMs)}`)
+  if (totals.toolMs > 0) timeParts.push(`🔧 Tools ${formatDuration(totals.toolMs)}`)
+  if (totals.ttftSamples > 0) timeParts.push(`🚀 TTFT ${formatDuration(totals.ttftMs / totals.ttftSamples)}`)
+  if (totals.decMs > 0) timeParts.push(`⚡ ${(totals.decTk / (totals.decMs / 1_000)).toFixed(1)} tok/s`)
+  if (timeParts.length > 0) {
     lines.push('')
-    lines.push('  By model')
-    const rows = aggregate.byModel
-    const width = Math.max(...rows.map(r => r.model.length))
-    for (const row of rows.slice(0, 8)) {
-      lines.push(`    ${row.model.padEnd(width)}  ${modelSummary(row)}`)
+    lines.push(timeParts.join(' · '))
+  }
+  // Model rows that carried no usage at all render as empty table clutter —
+  // drop them — and the table caps at eight rows with a count note.
+  const models = aggregate.byModel.filter(row => row.requests > 0 || row.tin + row.cr + row.cw + row.out > 0)
+  if (models.length > 0) {
+    lines.push('')
+    lines.push('## 🤖 By model')
+    lines.push('')
+    lines.push('| Model | 📥 In | 📤 Out | 🔥 Cache | 📡 Req |')
+    lines.push('| --- | --- | --- | --- | --- |')
+    for (const row of models.slice(0, 8)) {
+      lines.push(`| ${row.model} | ${formatTokens(row.tin + row.cr + row.cw)} | ${formatTokens(row.out)} | ${hitCell(cacheHitPercent(row))} | ${row.requests} |`)
     }
-    if (rows.length > 8) lines.push(`    +${rows.length - 8} more models`)
+    if (models.length > 8) lines.push('', `+${models.length - 8} more models`)
   }
   const bars = RANGES[key].days > DAILY_BAR_MAX_DAYS ? foldWeekly(aggregate.byDay) : aggregate.byDay
-  const barLines = renderBars(bars)
-  if (barLines.length > 0) {
+  const rows = renderBars(bars)
+  if (rows.length > 0) {
     lines.push('')
-    lines.push(...barLines)
+    lines.push('## 📈 Activity')
+    lines.push('')
+    lines.push('| 📅 Date | 📊 Tokens | 📈 |')
+    lines.push('| --- | --- | --- |')
+    for (const row of rows) lines.push(`| ${row.date} | ${formatTokens(row.tokens)} | ${row.bar} |`)
   }
   return lines.join('\n')
 }
 
-/** One aligned `in X out Y cache Z% req N` summary (totals row includes counts). */
-function modelSummary(row: ModelRow): string {
-  const parts = [`in ${formatTokens(row.tin + row.cr + row.cw)}`, `out ${formatTokens(row.out)}`]
-  const hit = cacheHitPercent(row)
-  if (hit !== null) parts.push(`cache ${hit}%`)
-  parts.push(`req ${row.requests}`)
-  return parts.join('  ')
+/** Cache-hit table cell: `NN%`, or empty when nothing was billed. */
+function hitCell(hit: number | null): string {
+  return hit === null ? '' : `${hit}%`
+}
+
+/** One activity-table row of the report. */
+export interface BarLine {
+  /** Date label: `Sep 1`, or `Aug 26–Sep 1` for weekly folds. */
+  date: string
+  /** Total billed tokens in the bucket. */
+  tokens: number
+  /** Bar scaled to the max bucket; empty for a zero-token bucket. */
+  bar: string
 }
 
 /** One bar spans a day; anything longer is a weekly fold. */
 const DAY_MS = 86_400_000
 
-/** Render bar rows as `Aug 26 ▇▇▇▇ 2.1M` lines, scaled to the max bucket. */
-export function renderBars(bars: readonly BarRow[]): string[] {
+/** Render bar rows as activity-table cells, scaled to the max bucket (24 cells). */
+export function renderBars(bars: readonly BarRow[]): BarLine[] {
   if (bars.length === 0) return []
   const max = Math.max(...bars.map(b => b.tokens))
   if (max <= 0) return []
   const weekly = bars.length > 1 && bars[1].end - bars[1].t > DAY_MS
-  const lines: string[] = []
+  const rows: BarLine[] = []
   for (const bar of bars) {
     const filled = bar.tokens > 0 ? Math.max(1, Math.round(bar.tokens / max * 24)) : 0
-    const label = weekly
+    const date = weekly
       ? `${formatDate(bar.t)}–${formatDate(bar.end - 1)}`
       : formatDate(bar.t)
-    lines.push(`  ${label} ${'▇'.repeat(filled)} ${formatTokens(bar.tokens)}`)
+    rows.push({ date, tokens: bar.tokens, bar: '▇'.repeat(filled) })
   }
-  return lines
+  return rows
 }

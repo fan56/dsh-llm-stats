@@ -2,23 +2,42 @@
 
 [English](README.md) | 中文
 
-[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的持久化 LLM 用量账本插件，提供纯文本 `/llm-stats` 斜杠命令。插件把每个结束的 agent step 折叠成一行持久化记录——token 四桶（provider 报告）、模型耗时、首 token 延迟、解码吞吐、工具耗时——追加写入 `$DSH_HOME/llm-stats/` 下本进程私有的分片文件。本机所有挂载了本插件的 dsh 进程共用这份整机账本，`/llm-stats` 在任意 surface 上按滚动日历窗口渲染：
+[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的持久化 LLM 用量账本插件，提供 `/llm-stats` 斜杠命令，以 markdown 报告（GFM 表格 + emoji）呈现用量。插件把每个结束的 agent step 折叠成一行持久化记录——token 四桶（provider 报告）、模型耗时、首 token 延迟、解码吞吐、工具耗时——追加写入 `$DSH_HOME/llm-stats/` 下本进程私有的分片文件。本机所有挂载了本插件的 dsh 进程共用这份整机账本，`/llm-stats` 在任意 surface 上按滚动日历窗口渲染：
 
 ```
-LLM stats · last 7 days (Aug 26 – Sep 1)
+## 📊 LLM stats · last 30 days (Aug 3 – Sep 1)
 
-  Sessions 12 · Turns 48 · Requests 156 · Steps 160
-  Tokens in 1.2M · cache hit 87% · out 45.3K · total 1.25M
-  Time model 18m32s · tools 4m10s · avg TTFT 1.2s · 42.3 tok/s
+| ⚡ Sessions | 💬 Turns | 📡 Requests | 👣 Steps |
+| --- | --- | --- | --- |
+| 132 | 196 | 2710 | 2742 |
 
-  By model
-    glm-4.6        in 900K  out 30K  cache 88%  req 120
-    deepseek-chat  in 300K  out 15K  cache 85%  req 36
+| 📥 In | 🔥 Cache hit | 📤 Out | 🧮 Total |
+| --- | --- | --- | --- |
+| 141M | 93% | 2.5M | 144M |
 
-  Aug 26 ▇▇▇▇▇▇▇▇ 120K
-  Aug 27 ▇▇▇▇▇▇▇▇▇▇▇▇ 180K
-  ...
+⏱ Model 13h15m · 🔧 Tools 18h35m · 🚀 TTFT 4.5s · ⚡ 69.2 tok/s
+
+## 🤖 By model
+
+| Model | 📥 In | 📤 Out | 🔥 Cache | 📡 Req |
+| --- | --- | --- | --- | --- |
+| glm-5.3-flash | 46.8M | 930K | 90% | 1053 |
+| deepseek-v4-flash | 78.1M | 1.1M | 94% | 1304 |
+| glm-5.3 | 14.6M | 369K | 93% | 301 |
+| MiniMax-M3 | 186K | 15.3K | 45% | 7 |
+| kimi | 393K | 6.8K | 79% | 10 |
+| minimax/minimax-m3:free | 1.2M | 14.2K | 96% | 35 |
+
+## 📈 Activity
+
+| 📅 Date | 📊 Tokens | 📈 |
+| --- | --- | --- |
+| Aug 28 | 168K | ▇ |
+| Aug 31 | 4.6M | ▇▇▇▇▇▇▇▇▇▇▇▇▇▇ |
+| Sep 1 | 8M | ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇ |
 ```
+
+dsh-tui-pi 会识别表格分隔行，把报告经 markdown 组件渲染成框线表格；其他 surface（如 headless）显示原始 markdown。
 
 ## 安装
 
