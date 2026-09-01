@@ -68,6 +68,10 @@ test('toFoldEvent passes envelopes and synthesizes first-token chunks from packe
   assert.equal(isTokenDeltaLike(toolRun.data.chunk), true)
   assert.equal(toFoldEvent({ type: 'session', id: 'x' }), null)
   assert.equal(toFoldEvent({ type: 'turn/start', seq: 1, time: 1, data: { turn: 1 } }), null)
+  // alpha.3 log shape: log-only header snapshots (incl. reason 'series' and
+  // the startsSeries marker) are not fold vocabulary — dropped, not passed.
+  assert.equal(toFoldEvent(row('request/header', 3, { header: RC, reason: 'series', startsSeries: true })), null)
+  assert.equal(toFoldEvent(row('request/header', 4, { header: RC, reason: 'change' })), null)
 })
 
 function isTokenDeltaLike(chunk) {
@@ -79,6 +83,9 @@ function isTokenDeltaLike(chunk) {
 function fullSessionRows() {
   return [
     row('request/context', 1000, RC),
+    // alpha.3 writes log-only request/header snapshots inside the step; the
+    // 'series' reason + startsSeries marker must not disturb the fold.
+    row('request/header', 1050, { header: RC, reason: 'series', startsSeries: true }),
     row('step/start', 1100, { turn: 1, step: 1 }),
     { type: 'text-chunks', seq0: 100, time0: 1250, data: { turn: 1, step: 1, texts: ['hi'] } },
     row('tool/call', 1300, { turn: 1, step: 1, callId: 'c1', name: 'fs.read', arguments: '{}' }),

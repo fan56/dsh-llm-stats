@@ -22,8 +22,10 @@ jobs:
       # Typechecking imports @deepseek-ai/* from the global dsh closure via
       # scripts/link-dsh-closure.mjs. A pristine runner has none, so install
       # the public CLI first — it carries the closure the linker resolves.
+      # The `alpha` dist-tag rolls with the 0.1.2-alpha line this plugin
+      # targets; `latest` still points at the rc line it dropped.
       - name: Install global dsh closure
-        run: npm install -g @deepseek-ai/dsh
+        run: npm install -g @deepseek-ai/dsh@alpha
 
       - name: Link dsh closure types
         run: node scripts/link-dsh-closure.mjs

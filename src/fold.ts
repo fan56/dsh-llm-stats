@@ -19,7 +19,6 @@
  * @module @aiwayds/dsh-llm-stats/fold
  */
 
-import { isTokenDelta } from '@deepseek-ai/dsh-llm/message'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import { RECORD_VERSION, type StepRecord } from './types.ts'
 
@@ -66,6 +65,33 @@ const UNKNOWN_ROUTE: StepRoute = { provider: 'unknown', model: 'unknown' }
 /** Guard a usage bucket field the way the upstream projection does. */
 function usageField(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0
+}
+
+/**
+ * Whether a stream chunk carries visible model output (the first-token
+ * boundary). Empty deltas (heartbeats, empty tool-call frames) do not count.
+ *
+ * Localized: dsh 0.1.2-alpha.3 removed the `isTokenDelta` export from
+ * `@deepseek-ai/dsh-llm/message` (upstream dsh-session-stats now defines the
+ * identical helper inline); the semantics here match it byte for byte.
+ */
+function isTokenDelta(chunk: unknown): boolean {
+  if (chunk === null || typeof chunk !== 'object') return false
+  const { type, text, argumentsDelta, name } = chunk as {
+    type?: unknown
+    text?: unknown
+    argumentsDelta?: unknown
+    name?: unknown
+  }
+  switch (type) {
+    case 'text-delta':
+    case 'reasoning-delta':
+      return text !== ''
+    case 'tool-call-delta':
+      return argumentsDelta !== '' || name !== undefined
+    default:
+      return false
+  }
 }
 
 /**

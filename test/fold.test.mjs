@@ -137,6 +137,30 @@ test('a step/end without a seen step/start emits nothing', () => {
   assert.equal(fold.fold(SID, event('step/end', 1600, { turn: 9, step: 9 })), null)
 })
 
+test('alpha.3 request/header events (reason series, startsSeries) fold as no-ops', () => {
+  // dsh 0.1.2-alpha.3 extended `request/header` with reason 'series' and the
+  // optional startsSeries marker (packages/core/session types). The fold must
+  // treat the whole log-only header vocabulary as irrelevant: no throw, no
+  // record, and no disturbance of the open step or its attribution.
+  const fold = startedFold()
+  assert.equal(fold.fold(SID, event('request/header', 1150, {
+    header: { provider: 'zai', model: 'glm-4.6' },
+    reason: 'series',
+    startsSeries: true,
+  })), null)
+  assert.equal(fold.fold(SID, event('request/header', 1151, {
+    header: { provider: 'zai', model: 'glm-4.6' },
+    reason: 'change',
+  })), null)
+  fold.fold(SID, event('assistant/chunk', 1250, { turn: 1, step: 1, chunk: { type: 'text-delta', text: 'ok' } }))
+  fold.fold(SID, event('assistant/message', 1500, { turn: 1, step: 1, message: {}, usage: { inputTokens: 10, outputTokens: 4 } }))
+  const record = fold.fold(SID, event('step/end', 1600, { turn: 1, step: 1 }))
+  assert.equal(record.prov, 'zai')
+  assert.equal(record.model, 'glm-4.6')
+  assert.equal(record.ttftMs, 150) // the 1250 chunk is still the first token (1250 - step/start 1100)
+  assert.equal(record.tin, 10)
+})
+
 test('malformed shapes never throw and never emit', () => {
   const fold = new SessionFold()
   assert.equal(fold.fold('', event('step/start', 1, { turn: 1, step: 1 })), null)
