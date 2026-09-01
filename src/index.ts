@@ -21,7 +21,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type { CommandResult } from '@deepseek-ai/dsh-commands'
-import { SessionFold } from './fold.ts'
+import { SessionFold, type StepRoute } from './fold.ts'
 import { StatsStore, resolveStoreDir } from './store.ts'
 import { aggregate, rangeWindow } from './aggregate.ts'
 import { renderReport } from './render.ts'
@@ -112,11 +112,20 @@ export function apply(ctx: Context, config: Config = {}, internals: Internals = 
   const fold = new SessionFold()
 
   // Recorder: one committed event in, maybe one record out. Billing must
-  // never break a session — fold and append failures are swallowed.
+  // never break a session — fold and append failures are swallowed. The
+  // session's own route read seeds attribution across /reload, mid-session
+  // mounts, and fold-state eviction (request/context logs only on change).
   if (policy.mode === 'on') {
     ctx.on('session/event', (session: Session, event: SessionEvent) => {
       try {
-        const record = fold.fold(session.id, event)
+        let route: StepRoute | undefined
+        try {
+          const rc = session.requestContext()
+          if (rc !== undefined) route = { provider: rc.provider, model: rc.model }
+        } catch {
+          // Event-driven attribution alone still works without the accessor.
+        }
+        const record = fold.fold(session.id, event, route)
         if (record !== null) store.append(record)
       } catch {
         // Never take the session down over statistics.
@@ -147,7 +156,7 @@ export function apply(ctx: Context, config: Config = {}, internals: Internals = 
     description: 'Show LLM usage statistics (tokens, cache hit, time) over a rolling window',
     input: { hint: '[day|week|month|3m|6m|12m]' },
     handler: (invocation): CommandResult => {
-      const raw = invocation.rawInput.trim()
+      const raw = invocation.rawInput.trim().toLowerCase()
       let key: RangeKey
       if (raw === '') {
         key = policy.defaultRange

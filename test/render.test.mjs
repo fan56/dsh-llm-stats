@@ -20,6 +20,7 @@ test('formatTokens compacts like the web stats strip', () => {
   assert.equal(formatTokens(517), '517')
   assert.equal(formatTokens(12_200), '12.2K')
   assert.equal(formatTokens(517_000), '517K')
+  assert.equal(formatTokens(999_950), '1M')
   assert.equal(formatTokens(1_200_000), '1.2M')
 })
 

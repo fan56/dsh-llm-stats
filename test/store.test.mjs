@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, utimesSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -122,6 +122,25 @@ test('retention drops records older than the cutoff at compaction', () => {
     assert.equal(kept.length, 1)
     assert.equal(kept[0].t, NOW - 100 * 86_400_000)
     next.close()
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('readAll and aggregate-scale reads survive a 160K-record shard', () => {
+  const dir = tempDir()
+  try {
+    const store = new StatsStore(dir, { now: () => NOW })
+    const lines = []
+    for (let i = 0; i < 160_000; i += 1) {
+      lines.push(JSON.stringify(record({ turn: Math.floor(i / 100), step: i % 100 })))
+    }
+    writeFileSync(join(dir, 'records.bulk.jsonl'), `${lines.join('\n')}\n`)
+    store.close()
+    const reader = new StatsStore(dir, { now: () => NOW })
+    const all = reader.readAll()
+    assert.equal(all.length, 160_000)
+    reader.close()
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

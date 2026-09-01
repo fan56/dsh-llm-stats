@@ -20,6 +20,8 @@
 
 import {
   closeSync,
+  existsSync,
+  fstatSync,
   mkdirSync,
   openSync,
   readdirSync,
@@ -28,6 +30,7 @@ import {
   rmSync,
   statSync,
   unlinkSync,
+  utimesSync,
   writeFileSync,
   writeSync,
 } from 'node:fs'
@@ -131,6 +134,8 @@ export class StatsStore {
   private readonly shardDeadMs: number
   private readonly shardName: string
   private fd: number | null = null
+  /** Inode the open fd points at; a mismatch means the file was replaced/unlinked under us. */
+  private fdIno: number | null = null
 
   constructor(dir: string, options: StoreOptions = {}) {
     this.dir = dir
@@ -151,32 +156,76 @@ export class StatsStore {
    * low-frequency (one per model call) and a failed write must never take
    * the session down, so errors are swallowed — the line is lost and the
    * session keeps running.
+   *
+   * Before every write the shard file is checked against the open fd's
+   * inode: a concurrent compaction that judged this process dead and
+   * unlinked the shard would otherwise leave the fd appending to an
+   * orphaned inode, silently losing every later record. On mismatch the fd
+   * is rolled to a fresh file at the same path.
    * @param record - the closed step's record.
    */
   append(record: StepRecord): void {
     const line = `${JSON.stringify(record)}\n`
     try {
-      this.fd ??= openSync(this.shardPath, 'a')
+      this.ensureLiveFd()
+      if (this.fd === null) {
+        this.fd = openSync(this.shardPath, 'a')
+        this.fdIno = fstatSync(this.fd).ino
+      }
       writeSync(this.fd, line)
     } catch {
       // Best-effort by design; drop the line rather than surface an error.
+      // A dead descriptor must not wedge every later append.
+      this.resetFd()
+    }
+  }
+
+  /**
+   * Reopen the append fd when the on-disk shard no longer matches it
+   * (unlinked by another process's compaction, or a rolled file).
+   */
+  private ensureLiveFd(): void {
+    if (this.fd === null) return
+    try {
+      const onDisk = statSync(this.shardPath)
+      if (this.fdIno !== null && onDisk.ino === this.fdIno) return
+    } catch {
+      // Missing file: fall through and re-create it.
+    }
+    this.resetFd()
+  }
+
+  /** Close (and forget) the current fd so the next append opens a fresh file. */
+  private resetFd(): void {
+    if (this.fd !== null) {
+      try {
+        closeSync(this.fd)
+      } catch {
+        // Already closed.
+      }
+      this.fd = null
+      this.fdIno = null
     }
   }
 
   /**
    * Read every record in the ledger: baseline first, then all shards
    * (including this fiber's), in directory order. Malformed lines and
-   * foreign files are skipped.
+   * foreign files are skipped. Records are pushed in a loop — spreading a
+   * large file's array overflows the call stack at ~150K records, which is
+   * reachable within the default retention window.
    * @returns valid records across the whole ledger.
    */
   readAll(): StepRecord[] {
     const records: StepRecord[] = []
     const files = this.listFiles()
     if (files.includes(BASELINE_NAME)) {
-      records.push(...this.readFile(join(this.dir, BASELINE_NAME)))
+      for (const record of this.readFile(join(this.dir, BASELINE_NAME))) records.push(record)
     }
     for (const name of files) {
-      if (name.startsWith(SHARD_PREFIX)) records.push(...this.readFile(join(this.dir, name)))
+      if (name.startsWith(SHARD_PREFIX)) {
+        for (const record of this.readFile(join(this.dir, name))) records.push(record)
+      }
     }
     return records
   }
@@ -184,13 +233,32 @@ export class StatsStore {
   /**
    * Take the compaction lock (single attempt, no waiting): a caller that
    * loses the race skips this round — another live process is doing the work.
+   *
+   * The lock is a directory carrying an owner file; stale takeovers go
+   * through an atomic rename so two simultaneous judgers can never both end
+   * up holding it, and release deletes the directory only when the owner
+   * file still names us.
    * @returns the lock release thunk, or null when a healthy lock is held elsewhere.
    */
   private acquireLock(): (() => void) | null {
     const lockPath = join(this.dir, LOCK_NAME)
+    const owner = `${this.pid}\u0000${this.shardName}`
+    const mkOwner = (): void => {
+      writeFileSync(join(lockPath, 'owner'), owner)
+    }
+    const owned = (): boolean => {
+      try {
+        return readFileSync(join(lockPath, 'owner'), 'utf8') === owner
+      } catch {
+        return false
+      }
+    }
     try {
       mkdirSync(lockPath)
-      return () => rmSync(lockPath, { recursive: true, force: true })
+      mkOwner()
+      return () => {
+        if (owned()) rmSync(lockPath, { recursive: true, force: true })
+      }
     } catch {
       let stale = false
       try {
@@ -200,10 +268,15 @@ export class StatsStore {
       }
       if (!stale) return null
       try {
-        // Take over a stale lock by removing it and retrying once.
-        rmSync(lockPath, { recursive: true, force: true })
+        // Take over a stale lock by renaming it aside atomically: a rival
+        // takeover's rename throws and it skips the round instead of both
+        // re-creating the lock and later deleting each other's hold.
+        renameSync(lockPath, `${lockPath}.stale-${this.pid}-${randomBytes(3).toString('hex')}`)
         mkdirSync(lockPath)
-        return () => rmSync(lockPath, { recursive: true, force: true })
+        mkOwner()
+        return () => {
+          if (owned()) rmSync(lockPath, { recursive: true, force: true })
+        }
       } catch {
         return null
       }
@@ -252,11 +325,22 @@ export class StatsStore {
 
   /**
    * Merge dead shards into a retention-filtered, deduped baseline and delete
-   * the merged files. The live shard (this fiber's) is never touched.
+   * the merged files. The live shard (this fiber's) is never touched; its
+   * mtime is refreshed first so a process that compacts on cadence can
+   * never trip another process's idle wall (a laptop asleep over a weekend
+   * wakes with its shard intact).
    * @param retentionDays - drop records older than this many days; null skips retention filtering.
    * @returns the number of records written into the new baseline.
    */
   compact(retentionDays: number | null): number {
+    // Heartbeat: prove this shard's owner is alive even if it has appended
+    // nothing lately; the idle wall then only ever catches true orphans.
+    try {
+      const path = this.shardPath
+      if (existsSync(path)) utimesSync(path, new Date(this.now()), new Date(this.now()))
+    } catch {
+      // The shard may not exist yet (nothing appended); nothing to prove.
+    }
     const release = this.acquireLock()
     if (release === null) return 0
     try {
@@ -266,7 +350,7 @@ export class StatsStore {
       for (const name of this.listFiles()) {
         const path = join(this.dir, name)
         if (name === BASELINE_NAME || this.shardDead(name)) {
-          records.push(...this.readFile(path))
+          for (const record of this.readFile(path)) records.push(record)
           if (name !== BASELINE_NAME) dead.push(name)
         }
       }

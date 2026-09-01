@@ -18,12 +18,14 @@
 import { foldWeekly, type BarRow, type ModelRow, type RangeAggregate } from './aggregate.ts'
 import { DAILY_BAR_MAX_DAYS, RANGES, type RangeKey } from './types.ts'
 
-/** Compact token count: 517 / 12.2K / 517K / 1.2M (one decimal under 100). */
+/** Compact token count: 517 / 12.2K / 999.5K / 1M / 1.2M (one decimal under 100). */
 export function formatTokens(n: number): string {
   const scaled = (v: number): string => (v >= 100 ? String(Math.round(v)) : String(Math.round(v * 10) / 10))
   if (n < 1_000) return String(n)
-  if (n < 1_000_000) return `${scaled(n / 1_000)}K`
-  return `${scaled(n / 1_000_000)}M`
+  // 999_500 rounds to 1000.0K at one decimal — carry into megabytes instead
+  // of ever printing a "1000K" row.
+  if (n >= 999_500) return `${scaled(n / 1_000_000)}M`
+  return `${scaled(n / 1_000)}K`
 }
 
 /** Compact duration: 45.2s under a minute, 2m42s to an hour, 3h12m from there. */

@@ -8,7 +8,9 @@
  * first non-empty delta chunk and survives an in-step `llm/retry` (this fold
  * never resets on retry events at all); decode spans first token → message
  * on steps carrying both timing and output tokens; tool time pairs
- * `tool/call` → `tool/result` by callId and drops unresolved calls.
+ * `tool/call` → `tool/result` by callId (read from
+ * `message.source.callId`, where the host actually records it) and drops
+ * unresolved calls.
  *
  * The fold is deliberately total: it never throws on unexpected shapes and
  * treats events for steps it did not see open as no-ops, so a billing side
@@ -37,7 +39,7 @@ interface StepUsage {
 
 /** Per-session in-flight fold state. */
 interface SessionFoldState {
-  /** Latest route seen in this session; steps before any route fall back to `unknown`. */
+  /** Latest route seen for this session; steps before any route fall back to `unknown`. */
   route: StepRoute | null
   /** The open step's boundary facts; null outside a step. */
   open: {
@@ -58,8 +60,13 @@ interface SessionFoldState {
 /** Cap on simultaneously tracked sessions so short-lived child sessions cannot grow it unbounded. */
 const MAX_TRACKED_SESSIONS = 256
 
-/** Route stand-in for steps logged before the session's first `request/context`. */
+/** Route stand-in for steps logged before any route became known. */
 const UNKNOWN_ROUTE: StepRoute = { provider: 'unknown', model: 'unknown' }
+
+/** Guard a usage bucket field the way the upstream projection does. */
+function usageField(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0
+}
 
 /**
  * Per-session fold store: feed it committed session events, collect finished
@@ -74,29 +81,38 @@ export class SessionFold {
    * Fold one committed event; a finished step returns its record.
    * @param sid - id of the session the event belongs to.
    * @param event - the committed session event.
+   * @param currentRoute - the session's authoritative current route
+   *   (`session.requestContext()`), when the caller can supply it. Seeding
+   *   from the session object keeps attribution exact across /reload,
+   *   mid-session plugin mounts, and fold-state eviction — situations where
+   *   this fold never saw the `request/context` events (they log only on
+   *   change, and constructor seeds do not emit).
    * @returns the closed step's record on `step/end`, otherwise null.
    */
-  fold(sid: string, event: SessionEvent): StepRecord | null {
+  fold(sid: string, event: SessionEvent, currentRoute?: StepRoute): StepRecord | null {
     if (typeof sid !== 'string' || sid === '' || event === null || typeof event !== 'object') {
       return null
     }
     const state = this.stateFor(sid)
-    const data = event.data as Record<string, unknown> | undefined
-    if (data === undefined) return null
+    if (currentRoute !== undefined && typeof currentRoute.provider === 'string' && typeof currentRoute.model === 'string') {
+      state.route = { provider: currentRoute.provider, model: currentRoute.model }
+    }
+    // Runtime guard (the type says data is always present; foreign or torn
+    // events at runtime may not carry it).
+    if ((event as { data?: unknown }).data === undefined || (event as { data?: unknown }).data === null) {
+      return null
+    }
     switch (event.type) {
       case 'request/context': {
-        const provider = data.provider
-        const model = data.model
-        if (typeof provider === 'string' && typeof model === 'string') {
-          state.route = { provider, model }
-        }
+        // Narrowed payload: { provider, model, contextWindow? }.
+        const { provider, model } = event.data
+        state.route = { provider, model }
         return null
       }
       case 'step/start': {
-        if (typeof data.turn !== 'number' || typeof data.step !== 'number') return null
         state.open = {
-          turn: data.turn,
-          step: data.step,
+          turn: event.data.turn,
+          step: event.data.step,
           startTime: event.time,
           firstTokenTime: null,
           messageTime: null,
@@ -109,9 +125,7 @@ export class SessionFold {
       case 'assistant/chunk': {
         const open = state.open
         if (open === null || open.firstTokenTime !== null) return null
-        const chunk = data.chunk
-        if (chunk === null || typeof chunk !== 'object') return null
-        if (isTokenDelta(chunk as Parameters<typeof isTokenDelta>[0])) {
+        if (isTokenDelta(event.data.chunk)) {
           open.firstTokenTime = event.time
         }
         return null
@@ -120,37 +134,31 @@ export class SessionFold {
         const open = state.open
         if (open === null) return null
         if (open.messageTime === null) open.messageTime = event.time
-        const usage = data.usage
-        if (usage !== null && typeof usage === 'object') {
-          const u = usage as {
-            inputTokens?: unknown
-            outputTokens?: unknown
-            cacheReadTokens?: unknown
-            cacheWriteTokens?: unknown
-          }
+        const usage = event.data.usage
+        if (usage !== undefined) {
           // Sum every usage-bearing message of the step (retry re-asks land
           // as distinct messages here, unlike the durable log's replace-per-
           // (turn,step) projection — live steps carry one message each in
           // practice, and a second one is additional billed work).
           open.usage ??= { tin: 0, cr: 0, cw: 0, out: 0 }
-          open.usage.tin += typeof u.inputTokens === 'number' ? u.inputTokens : 0
-          open.usage.out += typeof u.outputTokens === 'number' ? u.outputTokens : 0
-          open.usage.cr += typeof u.cacheReadTokens === 'number' ? u.cacheReadTokens : 0
-          open.usage.cw += typeof u.cacheWriteTokens === 'number' ? u.cacheWriteTokens : 0
+          open.usage.tin += usageField(usage.inputTokens)
+          open.usage.out += usageField(usage.outputTokens)
+          open.usage.cr += usageField(usage.cacheReadTokens)
+          open.usage.cw += usageField(usage.cacheWriteTokens)
         }
         return null
       }
       case 'tool/call': {
-        if (typeof data.callId === 'string' && data.callId !== '') {
-          state.pendingCalls.set(data.callId, event.time)
-        }
+        state.pendingCalls.set(event.data.callId, event.time)
         return null
       }
       case 'tool/result': {
-        if (typeof data.callId === 'string') {
-          const dispatch = state.pendingCalls.get(data.callId)
+        // The correlation id rides the result message's source, not the event.
+        const callId = event.data.message?.source?.callId
+        if (typeof callId === 'string') {
+          const dispatch = state.pendingCalls.get(callId)
           if (dispatch !== undefined) {
-            state.pendingCalls.delete(data.callId)
+            state.pendingCalls.delete(callId)
             state.tools += 1
             state.toolMs += Math.max(0, event.time - dispatch)
           }
@@ -161,6 +169,7 @@ export class SessionFold {
         return this.close(sid, state, event.time)
       }
       default:
+        // Plugin-extended or unrecognized vocabulary is irrelevant here.
         return null
     }
   }

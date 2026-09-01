@@ -25,7 +25,8 @@ test('a fully billed step folds into a complete record', () => {
   fold.fold(SID, event('assistant/chunk', 1250, { chunk: { type: 'text-delta', text: 'he' } }))
   fold.fold(SID, event('assistant/chunk', 1251, { chunk: { type: 'text-delta', text: 'llo' } }))
   fold.fold(SID, event('tool/call', 1300, { turn: 1, step: 1, callId: 'c1', name: 'fs.read', arguments: '{}' }))
-  fold.fold(SID, event('tool/result', 1400, { turn: 1, step: 1, callId: 'c1', message: {} }))
+  // The host puts the correlation id on message.source.callId (upstream shape).
+  fold.fold(SID, event('tool/result', 1400, { turn: 1, step: 1, callId: 'c1', message: { role: 'tool', content: [], source: { callId: 'c1' } } }))
   fold.fold(SID, event('assistant/message', 1500, {
     turn: 1, step: 1, message: {},
     usage: { inputTokens: 100, outputTokens: 50, cacheReadTokens: 900, cacheWriteTokens: 10 },
@@ -38,6 +39,27 @@ test('a fully billed step folds into a complete record', () => {
     llmMs: 400, ttftMs: 150, decMs: 250, decTk: 50,
     tools: 1, toolMs: 100,
   })
+})
+
+test('the authoritative session route seeds attribution without request/context', () => {
+  const fold = new SessionFold()
+  fold.fold(SID, event('step/start', 1100, { turn: 1, step: 1 }), { provider: 'seeded', model: 'route-1' })
+  fold.fold(SID, event('assistant/message', 1200, { turn: 1, step: 1, message: {}, usage: { inputTokens: 5, outputTokens: 5 } }))
+  const record = fold.fold(SID, event('step/end', 1300, { turn: 1, step: 1 }))
+  assert.equal(record.prov, 'seeded')
+  assert.equal(record.model, 'route-1')
+})
+
+test('usage fields are guarded against NaN and negatives', () => {
+  const fold = startedFold()
+  fold.fold(SID, event('assistant/message', 1500, {
+    turn: 1, step: 1, message: {},
+    usage: { inputTokens: Number.NaN, outputTokens: -5, cacheReadTokens: 900 },
+  }))
+  const record = fold.fold(SID, event('step/end', 1600, { turn: 1, step: 1 }))
+  assert.equal(record.tin, 0)
+  assert.equal(record.out, 0)
+  assert.equal(record.cr, 900)
 })
 
 test('an empty delta chunk does not start the TTFT window; a retry never resets it', () => {
@@ -81,14 +103,12 @@ test('a usage-less message yields null token buckets but model time', () => {
   assert.equal(record.decMs, null)
 })
 
-test('unresolved tool calls are dropped; later turns keep their own pairing', () => {
+test('unresolved tool calls are dropped; a top-level callId on tool/result does not pair', () => {
   const fold = startedFold()
   fold.fold(SID, event('tool/call', 1200, { turn: 1, step: 1, callId: 'lost', name: 'x', arguments: '' }))
+  // A result whose message carries a different source id never pairs.
+  fold.fold(SID, event('tool/result', 1300, { turn: 1, step: 1, callId: 'lost', message: { role: 'tool', content: [], source: { callId: 'other' } } }))
   fold.fold(SID, event('step/end', 1600, { turn: 1, step: 1 }))
-  fold.fold(SID, event('tool/call', 2100, { turn: 2, step: 1, callId: 'kept', name: 'x', arguments: '' }))
-  fold.fold(SID, event('tool/result', 2500, { turn: 2, step: 1, message: {} }))
-  fold.fold(SID, event('step/start', 2000, { turn: 2, step: 1 }))
-  // The step/end above came before step/start in this test; fold turn 2 properly.
 })
 
 test('steps before any request/context attribute to unknown', () => {

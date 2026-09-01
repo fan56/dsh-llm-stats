@@ -19,20 +19,35 @@ export interface RangeWindow {
 }
 
 /**
- * Compute the window for a range key.
+ * Compute the window for a range key. The start is derived with calendar
+ * component arithmetic (`setDate`) so DST shifts cannot push the window
+ * start off local midnight — plain ms subtraction would land at 23:00/01:00
+ * on transition days and silently exclude an hour of records.
  * @param key - the display range.
  * @param now - wall clock (epoch ms).
  * @returns half-open window bounds.
  */
 export function rangeWindow(key: RangeKey, now: number): RangeWindow {
   const days = RANGES[key].days
-  return { start: localMidnight(now) - (days - 1) * DAY_MS, end: now + 1 }
+  return { start: shiftCalendarDays(localMidnight(now), -(days - 1)), end: now + 1 }
 }
 
 /** Local midnight of the day containing `time`, epoch ms. */
 function localMidnight(time: number): number {
   const d = new Date(time)
   d.setHours(0, 0, 0, 0)
+  return d.getTime()
+}
+
+/**
+ * Midnight `days` calendar days from `midnightTs`, through DST transitions.
+ * @param midnightTs - a local-midnight timestamp.
+ * @param days - day offset (negative to go back).
+ * @returns the shifted local-midnight timestamp.
+ */
+function shiftCalendarDays(midnightTs: number, days: number): number {
+  const d = new Date(midnightTs)
+  d.setDate(d.getDate() + days)
   return d.getTime()
 }
 
@@ -180,16 +195,17 @@ export function aggregate(records: readonly StepRecord[], window: RangeWindow): 
 }
 
 /**
- * Fold daily bars into Monday-aligned weekly bars (long ranges only).
+ * Fold daily bars into Monday-aligned weekly bars (long ranges only). The
+ * Monday anchor is derived with calendar arithmetic for the same DST reason
+ * as `rangeWindow`.
  * @param byDay - the per-day series.
  * @returns one bar per ISO week (Monday local midnight).
  */
 export function foldWeekly(byDay: readonly BarRow[]): BarRow[] {
   const weeks = new Map<number, BarRow>()
   for (const bar of byDay) {
-    const date = new Date(bar.t)
-    const shift = (date.getDay() + 6) % 7 // days since Monday
-    const monday = bar.t - shift * DAY_MS
+    const shift = (new Date(bar.t).getDay() + 6) % 7 // days since Monday
+    const monday = shiftCalendarDays(localMidnight(bar.t), -shift)
     const week = weeks.get(monday)
     if (week === undefined) {
       weeks.set(monday, { t: monday, end: monday + 7 * DAY_MS, tokens: bar.tokens })
