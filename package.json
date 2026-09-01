@@ -1,7 +1,7 @@
 {
   "name": "@aiwayds/dsh-llm-stats",
   "version": "0.2.0",
-  "description": "dsh plugin: persistent whole-machine LLM usage ledger with a pure-text /llm-stats command (tokens, cache hit, model/tool time, per-day bars)",
+  "description": "dsh plugin: persistent whole-machine LLM usage ledger with a markdown /llm-stats report (GFM tables + emoji: tokens, cache hit, model/tool time, per-day bars)",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

@@ -1,6 +1,6 @@
 /**
- * dsh-llm-stats — persistent whole-machine LLM usage ledger with a pure-text
- * `/llm-stats` command.
+ * dsh-llm-stats — persistent whole-machine LLM usage ledger with a markdown
+ * `/llm-stats` report (GFM tables + emoji).
  *
  * The plugin subscribes to host-level `session/event` streams and folds every
  * closed step into one durable StepRecord line (see dsh-fold), appended to a
@@ -10,7 +10,7 @@
  * backfill from session logs can overlap without double counting.
  *
  * `/llm-stats` renders the ledger over rolling calendar-day windows — day,
- * week, month, 3m, 6m, 12m — as plain text on every surface. Retention
+ * week, month, 3m, 6m, 12m — as a markdown report (GFM tables + emoji) on every surface. Retention
  * (default one year, configurable) is enforced by a locked compaction that
  * merges dead shards into `baseline.jsonl`.
  *
