@@ -22,10 +22,22 @@ jobs:
       # Typechecking imports @deepseek-ai/* from the global dsh closure via
       # scripts/link-dsh-closure.mjs. A pristine runner has none, so install
       # the public CLI first — it carries the closure the linker resolves.
-      # The `alpha` dist-tag rolls with the 0.1.2-alpha line this plugin
-      # targets; `latest` still points at the rc line it dropped.
-      - name: Install global dsh closure
-        run: npm install -g @deepseek-ai/dsh@alpha
+      # Rolling rc/stable line (newest of latest/next at runtime), never
+      # hand-pinned and never the retired `alpha` dist-tag.
+      - name: Install dsh CLI (rolling rc/stable line — newest of latest/next, never alpha)
+        run: |
+          # Policy (2026-09-03): the alpha line is retired for CI. Resolve the
+          # newest of the `latest` (stable) and `next` (rc) dist-tags at
+          # runtime, never hand-pinned — when a stable 0.1.2+ lands on
+          # `latest` it wins over the rc by plain semver compare.
+          STABLE="$(npm view @deepseek-ai/dsh@latest version)"
+          RC="$(npm view @deepseek-ai/dsh@next version 2>/dev/null || true)"
+          DSH_VERSION="$STABLE"
+          if [ -n "$RC" ] && [ "$(printf '%s\n' "$STABLE" "$RC" | sort -V | tail -1)" = "$RC" ]; then
+            DSH_VERSION="$RC"
+          fi
+          echo "dsh closure: ${DSH_VERSION}"
+          npm install -g "@deepseek-ai/dsh@${DSH_VERSION}" --no-audit --no-fund
 
       - name: Link dsh closure types
         run: node scripts/link-dsh-closure.mjs
