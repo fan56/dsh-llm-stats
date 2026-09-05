@@ -111,6 +111,16 @@ export function resolveStoreDir(dshHome?: string): string {
   return join(resolve(expanded), STORE_DIR_NAME)
 }
 
+/** Whether a pid is alive (signal 0 probes liveness without signalling). */
+function pidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'EPERM'
+  }
+}
+
 /** Injection seam for tests: wall clock and process identity. */
 export interface StoreOptions {
   /** Wall-clock override (epoch ms). */
@@ -144,6 +154,40 @@ export class StatsStore {
     this.shardDeadMs = options.shardDeadMs ?? SHARD_DEAD_MS
     this.shardName = `${SHARD_PREFIX}${this.pid.toString(36)}-${Date.now().toString(36)}-${randomBytes(4).toString('hex')}.jsonl`
     mkdirSync(this.dir, { recursive: true })
+    this.sweepOrphans()
+  }
+
+  /**
+   * Best-effort cleanup of crash leftovers no live process can still be
+   * using: lock directories renamed aside by a stale-lock takeover (never
+   * revisited after the rename) and compaction tmp staging files whose
+   * writer pid is gone. A leftover must never block the ledger, so every
+   * removal is contained.
+   */
+  private sweepOrphans(): void {
+    let names: string[]
+    try {
+      names = readdirSync(this.dir)
+    } catch {
+      return
+    }
+    const tmpPrefix = `.${BASELINE_NAME}.tmp-`
+    for (const name of names) {
+      const full = join(this.dir, name)
+      try {
+        if (name.startsWith(`${LOCK_NAME}.stale-`)) {
+          rmSync(full, { recursive: true, force: true })
+          continue
+        }
+        if (!name.startsWith(tmpPrefix)) continue
+        const pid = Number.parseInt(name.slice(tmpPrefix.length), 10)
+        if (Number.isFinite(pid) && pid > 0 && pid !== this.pid && !pidAlive(pid)) {
+          rmSync(full, { force: true })
+        }
+      } catch {
+        // Contained: a stubborn leftover stays until the next open.
+      }
+    }
   }
 
   /** This fiber's shard file path. */

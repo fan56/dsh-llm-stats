@@ -49,6 +49,14 @@ dsh plugin add @aiwayds/dsh-llm-stats
 
 Then restart dsh. Install it into **every profile** whose usage you want counted (the ledger is machine-wide, but recording only happens where the plugin is mounted).
 
+## Uninstall
+
+```sh
+dsh plugin --profile <name> remove @aiwayds/dsh-llm-stats
+```
+
+The host reconciles the profile automatically (bundles entry spliced, patch layer dropped). The ledger at `~/.dsh/llm-stats/` (`baseline.jsonl`, `records.*.jsonl` shards, backfill files) stays — it is the usage history, and a reinstall continues it. Since 0.5.1 the plugin also sweeps orphaned `compact.lock.stale-*` takeover dirs and dead-pid `.baseline.jsonl.tmp-*` staging files at startup. Purge: back up, then `rm -rf ~/.dsh/llm-stats`.
+
 ## Usage
 
 | Command | Meaning |

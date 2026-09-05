@@ -49,6 +49,14 @@ dsh plugin add @aiwayds/dsh-llm-stats
 
 然后重启 dsh。想让哪些 profile 的用量计入，就把插件装进哪些 profile（账本整机一份，但只有挂载了插件的进程才会记账）。
 
+## 卸载
+
+```sh
+dsh plugin --profile <name> remove @aiwayds/dsh-llm-stats
+```
+
+宿主会自动收敛（bundles 条目移除、patch 层随包消失）。`~/.dsh/llm-stats/` 的账本（`baseline.jsonl`、`records.*.jsonl` 分片、回填文件）有意保留 —— 这是用量历史，重装后继续累计。0.5.1 起插件启动时会清扫遗留的 `compact.lock.stale-*` 接管目录和已死进程的 `.baseline.jsonl.tmp-*` 暂存文件。彻底清除：先备份，再 `rm -rf ~/.dsh/llm-stats`。
+
 ## 用法
 
 | 命令 | 含义 |

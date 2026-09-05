@@ -187,3 +187,30 @@ test('a stale lock is taken over', () => {
 function readdirNames(dir) {
   return readdirSync(dir)
 }
+
+test('a fresh store sweeps orphaned stale lock dirs and dead-pid tmp files, and keeps live ones', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'llm-stats-sweep-'))
+  try {
+    // Orphans: a stale lock dir renamed aside by a past takeover, and a tmp
+    // staging file whose writer pid is long gone.
+    mkdirSync(join(dir, 'compact.lock.stale-4242-abcdef'))
+    writeFileSync(join(dir, 'compact.lock.stale-4242-abcdef', 'owner'), 'long gone')
+    writeFileSync(join(dir, `.baseline.jsonl.tmp-999999999`), 'partial')
+    // Live: this test process's own tmp must survive (pid is alive), and an
+    // in-flight compaction lock must be left alone.
+    writeFileSync(join(dir, `.baseline.jsonl.tmp-${process.pid}`), 'mine')
+    mkdirSync(join(dir, 'compact.lock'))
+    writeFileSync(join(dir, 'compact.lock', 'owner'), 'live elsewhere')
+
+    const store = new StatsStore(dir, { now: () => NOW })
+    store.close()
+
+    const names = readdirNames(dir)
+    assert.ok(!names.includes('compact.lock.stale-4242-abcdef'), 'stale lock dir must be swept')
+    assert.ok(!names.includes('.baseline.jsonl.tmp-999999999'), 'dead-pid tmp must be swept')
+    assert.ok(names.includes(`.baseline.jsonl.tmp-${process.pid}`), 'live-pid tmp must survive')
+    assert.ok(names.includes('compact.lock'), 'a healthy lock dir must survive')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
