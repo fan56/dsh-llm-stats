@@ -4,7 +4,7 @@ English | [中文](README.zh.md)
 
 Persistent LLM usage ledger for the [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) with a `/llm-stats` slash command that reports usage as a markdown report (GFM tables + emoji). The plugin folds every closed agent step into one durable record line — tokens (four provider buckets), model wall time, first-token latency, decode throughput, tool wall time — appended to a process-private shard under `$DSH_HOME/llm-stats/`. Every dsh process on the machine that mounts the plugin feeds the same machine-wide ledger, and `/llm-stats` renders it over rolling calendar-day windows on any surface:
 
-**Requires dsh >= 0.1.2-rc.1** — this plugin targets the dsh RC/stable line only (CI and releases resolve the newest of the `latest`/`next` dist-tags at runtime). **The alpha line is no longer supported.**
+**Requires dsh >= 0.1.5-rc.1** — this plugin targets the dsh RC/stable line only (CI and releases resolve the newest of the `latest`/`next` dist-tags at runtime). **The alpha line is no longer supported.**
 
 ```
 ## 📊 LLM stats · last 30 days (Aug 3 – Sep 1)
@@ -24,7 +24,7 @@ Persistent LLM usage ledger for the [DeepSeek Harness](https://github.com/deepse
 | Model | 📥 In | 📤 Out | 🔥 Cache | 📡 Req |
 | --- | --- | --- | --- | --- |
 | glm-5.3-flash | 46.8M | 930K | 90% | 1053 |
-| deepseek-v4-flash | 78.1M | 1.1M | 94% | 1304 |
+| deepseek-flash | 78.1M | 1.1M | 94% | 1304 |
 | glm-5.3 | 14.6M | 369K | 93% | 301 |
 | MiniMax-M3 | 186K | 15.3K | 45% | 7 |
 | kimi | 393K | 6.8K | 79% | 10 |
