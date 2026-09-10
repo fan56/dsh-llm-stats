@@ -1,7 +1,9 @@
 /**
  * Ledger backfill from the durable session logs.
  *
- * `/llm-stats backfill` walks `$DSH_HOME/sessions/<project>/<id>/session.jsonl[.zstd]`,
+ * `/llm-stats backfill` walks `$DSH_HOME/sessions/<project>/<id>/` over the
+ * session artifacts (`session.v3.jsonl[.zstd]` for the V3 format, legacy
+ * `session.jsonl[.zstd]` below it),
  * decodes each container (the backend appends one zstd frame per batch, so
  * Node's one-shot decoder only ever sees the first frame — a structural
  * frame skip-scan over magic + frame header + block headers is implemented
@@ -113,18 +115,21 @@ export function decodeLogLines(buf: Buffer): string[] {
 
 /**
  * Translate one stored row into a fold input event. Envelope rows pass
- * through; packed chunk runs (`text-chunks`/`reasoning-chunks`/
- * `tool-call-chunks`) become a single synthetic first-token
- * `assistant/chunk` at the run's `time0` — exactly the one fact TTFT needs,
- * since a run by construction packs non-empty token deltas. The header row
- * and any other non-core vocabulary is dropped.
+ * through — including the V3 `assistant/attempt` and `assistant/message`
+ * settlements whose embedded `AssistantStreamRecord[]` stream carries the
+ * original chunk timestamps the fold's TTFT reads. Legacy (pre-V3) packed
+ * chunk runs (`text-chunks`/`reasoning-chunks`/`tool-call-chunks` as
+ * standalone rows) become a single synthetic first-token `assistant/chunk`
+ * at the run's `time0` — exactly the one fact TTFT needs, since a run by
+ * construction packs non-empty token deltas. The header row and any other
+ * non-core vocabulary is dropped.
  * @param row - one parsed JSONL row.
  * @returns a SessionEvent-shaped input, or null when the row is irrelevant.
  */
 export function toFoldEvent(row: Record<string, unknown>): SessionEvent | null {
   const type = row.type
   if (typeof type !== 'string') return null
-  if (type === 'assistant/chunk' || type === 'request/context' || type === 'step/start'
+  if (type === 'assistant/attempt' || type === 'request/context' || type === 'step/start'
     || type === 'step/end' || type === 'assistant/message' || type === 'tool/call'
     || type === 'tool/result') {
     return row as unknown as SessionEvent
@@ -219,13 +224,19 @@ export function discoverSessionLogs(dshHome?: string): SessionLog[] {
       continue
     }
     for (const id of ids) {
-      for (const suffix of ['session.jsonl.zstd', 'session.jsonl'] as const) {
+      // The artifact name carries the format generation since the V3 format
+      // (dsh 0.1.5-rc.1): `session.v3.jsonl[.zstd]`; legacy sessions keep
+      // `session.jsonl[.zstd]`. Prefer the current generation, compressed
+      // over raw — the first that exists wins (a preserved V0 sibling of a
+      // migrated session would double-count nothing: aggregation dedupes on
+      // (sid, turn, step), but one log per session keeps TTFT sources clean).
+      for (const suffix of ['session.v3.jsonl.zstd', 'session.v3.jsonl', 'session.jsonl.zstd', 'session.jsonl'] as const) {
         const path = join(sessionsRoot, project, id, suffix)
         try {
           logs.push({ id, path, mtime: statSync(path).mtimeMs })
           break
         } catch {
-          // Try the next suffix (zstd preferred).
+          // Try the next suffix (current generation, then zstd preferred).
         }
       }
     }

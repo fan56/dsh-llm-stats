@@ -81,6 +81,33 @@ test('a tool-call delta starts the TTFT window', () => {
   assert.equal(record.ttftMs, 100)
 })
 
+test('V3 settlements carry the TTFT in their embedded stream; a failed attempt counts', () => {
+  const fold = startedFold()
+  // A settled attempt that produced no surface message (retried away) whose
+  // stream already produced a token at t=1200 — the old live-chunk semantics
+  // kept that token, and the embedded stream preserves it.
+  fold.fold(SID, event('assistant/attempt', 1450, {
+    turn: 1, step: 1,
+    stream: [{ type: 'text-chunks', time0: 1200, index: 0, dt: [0, 30], texts: ['he', 'llo'] }],
+  }))
+  fold.fold(SID, event('assistant/message', 1500, {
+    turn: 1, step: 1, message: {},
+    stream: [{ type: 'text-chunks', time0: 1460, index: 1, dt: [0], texts: ['!'] }],
+    usage: { inputTokens: 100, outputTokens: 50 },
+  }))
+  const record = fold.fold(SID, event('step/end', 1600, { turn: 1, step: 1 }))
+  assert.equal(record.ttftMs, 100) // the attempt stream wins: 1200 - 1100
+  assert.equal(record.tin, 100)
+})
+
+test('a stream-less message leaves TTFT null and never throws', () => {
+  const fold = startedFold()
+  fold.fold(SID, event('assistant/message', 1500, { turn: 1, step: 1, message: {}, usage: { inputTokens: 1, outputTokens: 2 } }))
+  const record = fold.fold(SID, event('step/end', 1600, { turn: 1, step: 1 }))
+  assert.equal(record.ttftMs, null)
+  assert.equal(record.tin, 1)
+})
+
 test('a failed step records null tokens and timings but still lands a line', () => {
   const fold = startedFold()
   const record = fold.fold(SID, event('step/end', 1600, { turn: 1, step: 1 }))

@@ -20,7 +20,25 @@
  */
 
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import { assistantStreamFirstTokenTime } from '@deepseek-ai/dsh-llm'
 import { RECORD_VERSION, type StepRecord } from './types.ts'
+
+/**
+ * Legacy (pre-V3 log) synthetic chunk event, produced only by the backfill's
+ * packed-run translation of old logs. dsh 0.1.5-rc.1 removed `assistant/chunk`
+ * from the live vocabulary — streaming settles as `assistant/attempt` /
+ * `assistant/message` whose embedded `AssistantStreamRecord[]` carries the
+ * original chunk timestamps — so live folds never see this shape.
+ */
+export interface LegacyChunkEvent {
+  type: 'assistant/chunk'
+  seq: number
+  time: number
+  data: { turn: number; step: number; chunk: unknown }
+}
+
+/** Everything the fold accepts: live session events plus the legacy backfill shape. */
+export type FoldEvent = SessionEvent | LegacyChunkEvent
 
 /** Provider/model route carried by a `request/context` event. */
 export interface StepRoute {
@@ -95,6 +113,21 @@ function isTokenDelta(chunk: unknown): boolean {
 }
 
 /**
+ * First-token time of one embedded `AssistantStreamRecord[]` (V3 attempt and
+ * message settlements), delegated to the official reader. Total by contract:
+ * a non-array or malformed stream yields null instead of throwing, matching
+ * the fold's never-throw guarantee.
+ */
+function firstTokenFromStream(stream: unknown): number | null {
+  if (!Array.isArray(stream)) return null
+  try {
+    return assistantStreamFirstTokenTime(stream) ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Per-session fold store: feed it committed session events, collect finished
  * StepRecords. Session ids come from the `session/event` listener's session
  * argument, so child sessions that bubble to the host fold under their own
@@ -106,7 +139,7 @@ export class SessionFold {
   /**
    * Fold one committed event; a finished step returns its record.
    * @param sid - id of the session the event belongs to.
-   * @param event - the committed session event.
+   * @param event - the committed session event (or a legacy backfill chunk).
    * @param currentRoute - the session's authoritative current route
    *   (`session.requestContext()`), when the caller can supply it. Seeding
    *   from the session object keeps attribution exact across /reload,
@@ -115,7 +148,7 @@ export class SessionFold {
    *   change, and constructor seeds do not emit).
    * @returns the closed step's record on `step/end`, otherwise null.
    */
-  fold(sid: string, event: SessionEvent, currentRoute?: StepRoute): StepRecord | null {
+  fold(sid: string, event: FoldEvent, currentRoute?: StepRoute): StepRecord | null {
     if (typeof sid !== 'string' || sid === '' || event === null || typeof event !== 'object') {
       return null
     }
@@ -149,16 +182,33 @@ export class SessionFold {
         return null
       }
       case 'assistant/chunk': {
+        // Legacy backfill path only (pre-V3 packed-run logs); see LegacyChunkEvent.
+        const legacy = event as LegacyChunkEvent
         const open = state.open
         if (open === null || open.firstTokenTime !== null) return null
-        if (isTokenDelta(event.data.chunk)) {
-          open.firstTokenTime = event.time
+        if (isTokenDelta(legacy.data.chunk)) {
+          open.firstTokenTime = legacy.time
         }
+        return null
+      }
+      case 'assistant/attempt': {
+        // A settled attempt that produced no surface message (failed, retried,
+        // or cancelled). Its embedded stream carries the original chunk times,
+        // so a first token spent on an attempt that later failed still counts,
+        // matching the old live-chunk semantics.
+        const open = state.open
+        if (open === null || open.firstTokenTime !== null) return null
+        const firstToken = firstTokenFromStream(event.data.stream)
+        if (firstToken !== null) open.firstTokenTime = firstToken
         return null
       }
       case 'assistant/message': {
         const open = state.open
         if (open === null) return null
+        if (open.firstTokenTime === null) {
+          const firstToken = firstTokenFromStream(event.data.stream)
+          if (firstToken !== null) open.firstTokenTime = firstToken
+        }
         if (open.messageTime === null) open.messageTime = event.time
         const usage = event.data.usage
         if (usage !== undefined) {
