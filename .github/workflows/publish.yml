@@ -3,6 +3,10 @@ name: Publish
 on:
   push:
     tags: ['v*']
+  # Manual escape hatch: tag-push events are occasionally dropped by the
+  # Actions queue (observed on v0.6.0, 2026-09-11 — three tag pushes, zero
+  # runs). Dispatch with --ref <tag> to re-run the release for that tag.
+  workflow_dispatch:
 
 jobs:
   publish:
