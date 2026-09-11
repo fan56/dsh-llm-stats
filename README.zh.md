@@ -4,7 +4,7 @@
 
 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的持久化 LLM 用量账本插件，提供 `/llm-stats` 斜杠命令，以 markdown 报告（GFM 表格 + emoji）呈现用量。插件把每个结束的 agent step 折叠成一行持久化记录——token 四桶（provider 报告）、模型耗时、首 token 延迟、解码吞吐、工具耗时——追加写入 `$DSH_HOME/llm-stats/` 下本进程私有的分片文件。本机所有挂载了本插件的 dsh 进程共用这份整机账本，`/llm-stats` 在任意 surface 上按滚动日历窗口渲染：
 
-**要求 dsh >= 0.1.5-rc.1** — 本插件只跟随 dsh RC/stable 线（CI 与发版在运行时解析 latest/next 中更新的 dist-tag）。**不再支持 alpha 线。**
+**要求 dsh >= 0.1.5-rc.2** — 本插件只跟随 dsh RC/stable 线（CI 与发版在运行时解析 latest/next 中更新的 dist-tag）。**不再支持 alpha 线。**
 
 ```
 ## 📊 LLM stats · last 30 days (Aug 3 – Sep 1)

@@ -6,7 +6,7 @@ All notable changes to dsh-llm-stats are documented here. The format follows
 ## [Unreleased]
 
 ### Changed
-- **dsh closure moved to 0.1.5-rc.1** (dev pins, peer floors, locks).
+- **dsh closure moved to 0.1.5-rc.2** (dev pins, peer floors, locks).
 - **TTFT is read from the embedded attempt streams.** V3 `assistant/attempt` and `assistant/message` settlements carry `AssistantStreamRecord[]` with the original chunk timestamps; the fold delegates to the official `assistantStreamFirstTokenTime` reader. The legacy synthetic-chunk path remains for pre-V3 packed-run logs.
 - Backfill passes `assistant/attempt` rows through and discovers `session.v3.jsonl[.zstd]` artifacts (current generation first).
 
