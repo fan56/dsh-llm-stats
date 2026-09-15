@@ -6,8 +6,7 @@
 
 **要求 dsh >= 0.1.5-rc.2** — 本插件只跟随 dsh RC/stable 线（CI 与发版在运行时解析 latest/next 中更新的 dist-tag）。**不再支持 alpha 线。**
 
-```
-## 📊 LLM stats · last 30 days (Aug 3 – Sep 1)
+**📊 LLM stats · last 30 days (Aug 3 – Sep 1)**
 
 | ⚡ Sessions | 💬 Turns | 📡 Requests | 👣 Steps |
 | --- | --- | --- | --- |
@@ -19,7 +18,7 @@
 
 ⏱ Model 13h15m · 🔧 Tools 18h35m · 🚀 TTFT 4.5s · ⚡ 69.2 tok/s
 
-## 🤖 By model
+**🤖 By model**
 
 | Model | 📥 In | 📤 Out | 🔥 Cache | 📡 Req |
 | --- | --- | --- | --- | --- |
@@ -30,14 +29,13 @@
 | kimi | 393K | 6.8K | 79% | 10 |
 | minimax/minimax-m3:free | 1.2M | 14.2K | 96% | 35 |
 
-## 📈 Activity
+**📈 Activity**
 
 | 📅 Date | 📊 Tokens | 📈 |
 | --- | --- | --- |
 | Aug 28 | 168K | ▇ |
 | Aug 31 | 4.6M | ▇▇▇▇▇▇▇▇▇▇▇▇▇▇ |
 | Sep 1 | 8M | ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇ |
-```
 
 dsh-tui-pi 会识别表格分隔行，把报告经 markdown 组件渲染成框线表格；其他 surface（如 headless）显示原始 markdown。
 

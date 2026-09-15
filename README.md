@@ -6,8 +6,7 @@ Persistent LLM usage ledger for the [DeepSeek Harness](https://github.com/deepse
 
 **Requires dsh >= 0.1.5-rc.2** — this plugin targets the dsh RC/stable line only (CI and releases resolve the newest of the `latest`/`next` dist-tags at runtime). **The alpha line is no longer supported.**
 
-```
-## 📊 LLM stats · last 30 days (Aug 3 – Sep 1)
+**📊 LLM stats · last 30 days (Aug 3 – Sep 1)**
 
 | ⚡ Sessions | 💬 Turns | 📡 Requests | 👣 Steps |
 | --- | --- | --- | --- |
@@ -19,7 +18,7 @@ Persistent LLM usage ledger for the [DeepSeek Harness](https://github.com/deepse
 
 ⏱ Model 13h15m · 🔧 Tools 18h35m · 🚀 TTFT 4.5s · ⚡ 69.2 tok/s
 
-## 🤖 By model
+**🤖 By model**
 
 | Model | 📥 In | 📤 Out | 🔥 Cache | 📡 Req |
 | --- | --- | --- | --- | --- |
@@ -30,14 +29,13 @@ Persistent LLM usage ledger for the [DeepSeek Harness](https://github.com/deepse
 | kimi | 393K | 6.8K | 79% | 10 |
 | minimax/minimax-m3:free | 1.2M | 14.2K | 96% | 35 |
 
-## 📈 Activity
+**📈 Activity**
 
 | 📅 Date | 📊 Tokens | 📈 |
 | --- | --- | --- |
 | Aug 28 | 168K | ▇ |
 | Aug 31 | 4.6M | ▇▇▇▇▇▇▇▇▇▇▇▇▇▇ |
 | Sep 1 | 8M | ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇ |
-```
 
 dsh-tui-pi detects the table separators and renders the report through its markdown component as boxed tables; other surfaces (such as headless runs) show the raw markdown as-is.
 
