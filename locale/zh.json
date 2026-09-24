@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "dsh-llm-stats",
+    "description": "全机 LLM 用量台账，/llm-stats 输出 Markdown 报表：token、缓存命中、模型/工具耗时、逐日柱状。"
+  }
+}

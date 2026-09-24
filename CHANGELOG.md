@@ -3,6 +3,12 @@
 All notable changes to dsh-llm-stats are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Changed
+- **dsh closure moved to 0.1.7-rc.1** (dev pins on `dsh-commands` / `dsh-llm` / `dsh-session`, peer floor `dsh-llm >= 0.1.7-rc.1`, READMEs updated). cordis 4.0.4 / schemastery 3.18.4 ride along in devDependencies to satisfy the new line's peers. No source changes were needed; the `estimate` adoption is intentionally out of scope for this round.
+- **Plugin Manager metadata.** Added `icon.svg` and `locale/{en,zh}.json` (`meta.title`/`meta.description` per the official `readPluginMeta` contract); `package.json` now declares the `icon` and ships both in the tarball.
+
 ## [0.6.0] - 2026-09-11
 
 ### Changed

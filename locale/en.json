@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "dsh-llm-stats",
+    "description": "Whole-machine LLM usage ledger with a markdown /llm-stats report: tokens, cache hits, model/tool time, per-day bars."
+  }
+}
