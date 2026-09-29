@@ -6,6 +6,7 @@ All notable changes to dsh-llm-stats are documented here. The format follows
 ## [Unreleased]
 
 ### Changed
+- **Raise dsh host floor to 0.2.0-rc.2** (dev pins on `dsh-commands` / `dsh-llm` / `dsh-session`, peer floor `dsh-llm >= 0.2.0-rc.2`, lockfile regenerated against registry.npmjs.org). cordis 4.0.4 / schemastery 3.18.4 pins stay put; zero source changes — 0.2.0 is a digestion wave (no export removals, no compile-level breaks).
 - **dsh closure moved to 0.1.7-rc.1** (dev pins on `dsh-commands` / `dsh-llm` / `dsh-session`, peer floor `dsh-llm >= 0.1.7-rc.1`, READMEs updated). cordis 4.0.4 / schemastery 3.18.4 ride along in devDependencies to satisfy the new line's peers. No source changes were needed; the `estimate` adoption is intentionally out of scope for this round.
 - **Plugin Manager metadata.** Added `icon.svg` and `locale/{en,zh}.json` (`meta.title`/`meta.description` per the official `readPluginMeta` contract); `package.json` now declares the `icon` and ships both in the tarball.
 
