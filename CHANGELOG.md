@@ -3,7 +3,7 @@
 All notable changes to dsh-llm-stats are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.9.0] - 2026-11-06
 
 ### Changed
 - **0.2.2-rc.1 wave verification**: devDeps `@deepseek-ai/dsh-commands` / `dsh-llm` / `dsh-session` exact pins moved `0.2.1-rc.5` → `0.2.2-rc.1`; the dev-only `@deepseek-ai/cordis`/`@deepseek-ai/schemastery` pins moved `4.0.5`/`3.18.5` → `4.1.0`/`3.19.0` (the versions the 0.2.2-rc.1 host closure ships, and what the rc.1 packages peer-demand `~4.1.0`/`~3.19.0`); peer floors (`^3.18.2` / `>=0.2.0-rc.2`) untouched — pre-flight `includePrerelease` already matches. `package-lock.json` regenerated against registry.npmjs.org. CI's dsh install already resolves newest-of(latest/next) with a prerelease-aware compare (it adopts 0.2.2-rc.1 on its next run); publish.yml also resolves at runtime and now uses the same prerelease-aware compare (its leftover `sort -V` decision — which would diverge from prerelease-aware order once a stable lands on `latest` — is replaced; see below). Zero source changes — tsc check clean, 57 tests pass / 0 fail against the 0.2.2-rc.1 closure, real-host smoke boot PASS.
