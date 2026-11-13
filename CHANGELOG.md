@@ -5,6 +5,9 @@ All notable changes to dsh-llm-stats are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **npm packaged upgrade regression test.** `test/packaged-upgrade.test.mjs` installs the published 0.9.0 baseline in a scratch consumer, packs the repo, then upgrades that consumer to the tarball and asserts the package carries no `preinstall`/`install`/`postinstall` hook, still ships its bundle patch and entry, and leaves the consumer tree untouched — the pnpm 11 `strictDepBuilds` / `ERR_PNPM_IGNORED_BUILDS` class (see dsh-subagent-registry#10). No product change.
+
 ### Changed
 - **0.2.2-rc.2 wave**: devDeps `@deepseek-ai/dsh-commands` / `dsh-llm` / `dsh-session` exact pins moved `0.2.2-rc.1` → `0.2.2-rc.2`; peer floors (`^3.18.2` / `>=0.2.0-rc.2`) untouched — pre-flight `includePrerelease` already matches the new rc. `package-lock.json` regenerated against registry.npmjs.org (the repo `.npmrc` keeps `legacy-peer-deps=true` / `auto-install-peers=false`, so the stale rc.1 auto-installed peer tower collapses instead of shadowing the closure). One test-exposed fix: `dsh-llm@0.2.2-rc.2` declares the new `@deepseek-ai/dsh-error@0.2.2-rc.2` package as an exact peer, and under legacy-peer-deps peers are no longer auto-installed — three test files failed to load (`ERR_MODULE_NOT_FOUND`); the closure support devDep `@deepseek-ai/dsh-error: "0.2.2-rc.2"` is now pinned explicitly (same pattern as dsh-dcp's closure devDeps). CI's dsh install already resolves newest-of(latest/next) with a prerelease-aware node compare (it adopts `dsh@0.2.2-rc.2` from `next` on its next run); publish.yml likewise already resolves newest-of at runtime. tsc check clean, 57 tests pass / 0 fail, real-host smoke boot PASS.
 

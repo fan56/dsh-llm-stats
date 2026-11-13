@@ -35,7 +35,7 @@
     "build": "tsc -p tsconfig.json",
     "check": "tsc --noEmit -p tsconfig.json",
     "pretest": "npm run build",
-    "test": "node --test test/fold.test.mjs test/aggregate.test.mjs test/render.test.mjs test/store.test.mjs test/plugin.test.mjs test/backfill.test.mjs",
+    "test": "node --test test/fold.test.mjs test/aggregate.test.mjs test/render.test.mjs test/store.test.mjs test/plugin.test.mjs test/backfill.test.mjs && node test/packaged-upgrade.test.mjs",
     "smoke": "node scripts/smoke-boot.mjs"
   },
   "peerDependencies": {
